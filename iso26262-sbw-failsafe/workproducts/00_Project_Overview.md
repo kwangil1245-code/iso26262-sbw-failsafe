@@ -1,5 +1,6 @@
 # 프로젝트 개요 (Project Overview)
 
+
 **Document ID**: STEER-00-OV  
 **Version**: 1.3  
 **Date**: 2026-08-24  
