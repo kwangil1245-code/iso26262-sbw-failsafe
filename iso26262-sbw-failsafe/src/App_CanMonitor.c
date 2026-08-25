@@ -64,3 +64,4 @@ void CanMonitor_func(void)
     (void)Rte_Write_P_CanMonitorToSafetyPolicy_Steer_info(angle);
     (void)Rte_Write_P_CanMonitorToSafetyPolicy_Flag(flag);
 }
+ 
