@@ -13,3 +13,4 @@ void RE_Can_Tx_10ms(void)
     (void)Rte_Write_Project_SSU_SteerInfo_SSU_AliveCounter(aliveCounter++);
     (void)Rte_Write_Project_SSU_SteerInfo_SSU_SteerAngle(angle);
 }
+ 
