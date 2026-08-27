@@ -30,9 +30,9 @@
 따라서 다음과 같이 통신 갱신 이상이 다시 발생하면 FAIL-SAFE와 NORMAL 상태가 반복적으로 전환될 수 있다.
 
 ```text
-2 → 2 → 3 → 3 → 4
-    ↓    ↓    ↓    ↓
-   FAIL NORMAL FAIL NORMAL
+2  →  2  →  3  →  3  →  4
+      ↓     ↓     ↓     ↓
+    FAIL  NORMAL  FAIL  NORMAL
 ```
 
 본 변경의 목적은 FAIL-SAFE 진입에 사용된 Alive Counter를 복구 판단에서 제외하고, FAIL-SAFE 진입 이후 수신된 Counter들의 연속적인 증가를 확인한 후에만 NORMAL 상태로 복귀하도록 하는 것이다.
