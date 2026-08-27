@@ -1,13 +1,13 @@
 # HARA 워크시트 (Hazard Analysis and Risk Assessment)
 
-**Document ID**: STEER-00D-HARA
-**ISO 26262 Reference**: Part 3 (Concept Phase, Hazard Analysis and Risk Assessment)
-**ASPICE Reference**: SYS.2, SUP.10
-**Version**: 1.4
-**Date**: 2026-08-27
-**Status**: Baseline (Educational Assessment)
-**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템
-**Subtitle**: 조향 시스템 Hazard 분석 및 Safety Goal 도출
+**Document ID**: STEER-00D-HARA  
+**ISO 26262 Reference**: Part 3 (Concept Phase, Hazard Analysis and Risk Assessment)  
+**ASPICE Reference**: SYS.2, SUP.10  
+**Version**: 1.4  
+**Date**: 2026-08-27  
+**Status**: Baseline (Educational Assessment)  
+**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
+**Subtitle**: 조향 시스템 Hazard 분석 및 Safety Goal 도출  
 
 ---
 
