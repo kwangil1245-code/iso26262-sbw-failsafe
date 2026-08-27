@@ -1,292 +1,244 @@
-# 변경관리 시나리오: FAIL-SAFE 정상 복귀 안정화 및 Fault 원인 구분 개선
+# 변경관리 시나리오: FAIL-SAFE 해제 시 급격한 모터 동작 방지
 
 **Change Request ID**: CR-003  
-**Title**: FAIL-SAFE 정상 복귀 안정화 및 Fault 진단성 개선  
-**Version**: 0.2  
-**Date**: 2026-08-24  
+**Title**: FAIL-SAFE 정상 복귀 시 제어 기준값 동기화  
+**Version**: 0.3  
+**Date**: 2026-08-27  
 **Status**: Planned  
 **Project**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템
 
 ---
 
-## 1. 변경 배경과 목적
+## 1. 변경 배경 및 목적
 
-초기 설계에서는 Fault가 해제되고 정상 메시지가 1회 수신되면 FAIL-SAFE에서 NORMAL로 즉시 복귀하였다. CAPL 기반 시스템검증에서 정상 메시지와 비정상 메시지가 번갈아 수신되는 간헐적 Fault 조건을 적용한 결과, 시스템 상태가 NORMAL과 FAIL-SAFE 사이에서 반복 전환되고 PWM 출력이 순간적으로 재활성화될 수 있는 문제를 확인하였다.
+시스템검증에서 FAIL-SAFE 상태가 해제된 직후 모터가 한쪽 방향으로 급격하게 동작하는 현상을 확인하였다.
 
-또한 산출물과 코드의 추적성을 검토한 결과, `SWR-MON-002`는 통신·조향 입력·내부 실행 Fault를 구분하여 제공하도록 요구하지만 실제 구현은 모든 Fault를 하나의 Boolean Flag로 통합하고 있었다. 이 때문에 FAIL-SAFE 진입 여부는 확인할 수 있으나 원인을 외부에서 식별할 수 없었다.
+FAIL-SAFE 상태에서는 모터 출력을 차단하기 위해 SafetyPolicy가 ControlCalc에 조향값 `0`과 출력 금지 Flag를 전달한다. 그러나 기존 ControlCalc는 출력 금지 상태에서도 함수 마지막에 `prev_input_steer = input_steer`를 실행한다.
 
-이에 다음 두 항목을 변경한다.
+따라서 FAIL-SAFE가 유지되는 동안 `prev_input_steer`가 `0`으로 변경된다. 이후 정상 복귀 조건이 충족되어 실제 조향 입력이 다시 전달되면, ControlCalc는 실제 조향 입력과 `0`의 차이를 조향 변화량으로 판단하여 큰 PWM Duty와 방향 출력을 생성할 수 있다.
 
-1. 정상 복귀 조건을 정상 1회 확인에서 정상 조건 3회 연속 확인으로 강화한다.
-2. 단일 Boolean Fault Flag를 원인별 비트맵 `FaultCode`로 변경한다.
+본 변경의 목적은 정상 복귀 첫 주기에 현재 조향 입력을 제어 기준값으로 동기화하여, FAIL-SAFE 해제 순간 발생할 수 있는 급격한 모터 동작을 방지하는 것이다.
 
 ## 2. 변경요청
-
-### 2.1 정상 복귀 조건 강화
 
 | 항목 | 내용 |
 |---|---|
 | 발견 단계 | 시스템검증 |
-| 관련 시험 | SYS-TC-REC-001 |
-| 변경 전 | 정상 메시지 1회 수신 후 NORMAL 복귀 |
-| 변경 후 | 정상 조건 3회 연속 확인 후 NORMAL 복귀 |
-| 추가 조건 | 복귀 확인 중 Fault 재발 시 Counter 초기화 및 FAIL-SAFE 유지 |
-| 변경 사유 | 간헐적 Fault에서 상태 반복 전환과 출력 재활성화 방지 |
-| 변경 유형 | 안전 상태 전이 요구사항 변경 |
-
-### 2.2 Fault 원인 구분
-
-| 항목 | 내용 |
-|---|---|
-| 발견 단계 | 산출물–코드 추적성 검토 및 시스템 모니터링 검증 |
-| 관련 시험 | SYS-TC-MON-001 |
-| 변경 전 | 통신·입력·WdgM Fault를 단일 Boolean Flag로 전달 |
-| 변경 후 | Fault 원인을 비트맵 `FaultCode`로 구분하여 전달·관측 |
-| 변경 사유 | FAIL-SAFE 진입 원인 식별 및 `SWR-MON-002`와 구현의 일치 확보 |
-| 안전 영향 | Fault 원인 미구분 시 고장 분석과 조치 판단이 지연될 수 있음 |
-| 변경 유형 | 진단 인터페이스 및 모니터링 요구사항 변경 |
+| 관련 시험 | SYS-TC-REC-004 |
+| 변경 전 | FAIL-SAFE 상태에서도 `prev_input_steer`를 전달값 `0`으로 갱신 |
+| 문제 현상 | 정상 복귀 시 실제 조향 입력과 `0`의 차이를 변화량으로 계산하여 모터가 급격히 동작 |
+| 변경 후 | FAIL-SAFE 동안 기준값 갱신을 중지하고 정상 복귀 첫 주기에 현재 입력으로 기준값만 동기화 |
+| 복귀 첫 주기 출력 | PWM Duty `0`, Left/Right `FALSE`, 모터 구동 금지 |
+| 제어 재개 시점 | 기준값 동기화가 완료된 다음 주기 |
+| 변경 유형 | 정상 복귀 시 제어 연속성 및 출력 안정화 로직 변경 |
 
 ## 3. 변경 전 문제 재현
 
-### 3.1 정상 복귀 문제
+### 3.1 재현 절차
 
-| 수신 순서 | 변경 전 상태 | 문제점 |
-|---|---|---|
-| Fault | FAIL-SAFE | 정상 안전 전환 |
-| 정상 1회 | NORMAL | 너무 빠른 정상 복귀 |
-| Fault 재발 | FAIL-SAFE | 상태 재전환 |
-| 정상 1회 | NORMAL | PWM 출력 재활성화 가능 |
+1. 정상 상태에서 조향 제어를 수행한다.
+2. FAIL-SAFE 상태로 진입한다.
+3. SafetyPolicy가 ControlCalc에 조향값 `0`과 출력 금지 Flag를 전달한다.
+4. ControlCalc의 `prev_input_steer`가 `0`으로 갱신된다.
+5. 정상 복귀 조건이 충족되어 실제 조향 입력 `300`이 다시 전달된다.
+6. ControlCalc가 `300 - 0`을 조향 변화량으로 계산한다.
 
-### 3.2 Fault 원인 미구분 문제
+### 3.2 변경 전 동작
+
+| 실행 주기 | 상태 | 전달 조향값 | `prev_input_steer` | 계산 변화량 | 출력 |
+|---|---|---:|---:|---:|---|
+| T0 | NORMAL | 250 | 250 | 정상 변화량 | 정상 제어 |
+| T1 | FAIL-SAFE | 0 | 0으로 갱신 | 계산하지 않음 | PWM 0 |
+| T2 | FAIL-SAFE | 0 | 0으로 유지 | 계산하지 않음 | PWM 0 |
+| T3 | 정상 복귀 | 300 | 0 | 300 | 큰 PWM 및 방향 출력 가능 |
+
+정상 복귀 자체는 허용된 상태 전이지만, 내부 기준값이 안전 상태에서 사용한 대체값 `0`으로 바뀌어 제어 출력의 연속성이 깨진다.
+
+## 4. 원인 분석
+
+문제의 직접적인 원인은 ControlCalc의 무조건적인 이전 입력 갱신이다.
 
 ```c
-boolean flag = FALSE;
-
-if (rteReadError == TRUE)
-{
-    flag = TRUE;
-}
-else if (aliveCounterError == TRUE)
-{
-    flag = TRUE;
-}
-else if (steerInvalid == TRUE)
-{
-    flag = TRUE;
-}
+prev_input_steer = input_steer;
 ```
 
-모든 고장이 `TRUE`로만 전달되므로 SafetyPolicy와 CANoe 모니터링 환경에서 실제 원인을 구분할 수 없다. 복수 Fault가 동시에 발생한 경우에도 하나의 상태로만 표현된다.
+FAIL-SAFE 상태에서 `input_steer`는 실제 조향 입력이 아니라 출력 차단을 위해 SafetyPolicy가 전달한 대체값 `0`이다. 기존 로직은 이 값을 정상 제어 입력과 동일하게 취급하여 다음 제어 주기의 기준값으로 저장하였다.
 
-## 4. 요구사항 변경
+즉, 안전 출력 차단을 위한 대체값과 정상 제어 계산을 위한 기준값을 구분하지 않은 것이 원인이다.
 
-### 4.1 Req_008 변경
+## 5. 요구사항 변경
+
+### 5.1 시스템 요구사항 Req_008 보완
 
 **변경 전**
 
-> Fault가 해제되면 시스템은 FAIL-SAFE 상태에서 NORMAL 상태로 복귀해야 한다.
+> 정상 복귀 조건이 충족되면 시스템은 FAIL-SAFE 상태에서 NORMAL 상태로 복귀해야 한다.
 
 **변경 후**
 
-> 시스템은 FAIL-SAFE 상태에서 Fault가 없는 정상 조건이 3회 연속 확인된 경우에만 NORMAL 상태로 복귀해야 한다. 정상 확인 중 Fault가 다시 발생하면 정상 확인 횟수를 초기화하고 FAIL-SAFE 상태를 유지해야 한다.
+> 정상 복귀 조건이 충족되면 시스템은 FAIL-SAFE 상태에서 NORMAL 상태로 복귀해야 한다. 정상 복귀 첫 제어 주기에는 현재 조향 입력을 ControlCalc의 기준값으로 동기화하고 모터 출력을 비활성 상태로 유지해야 한다. 동기화가 완료된 다음 주기부터 입력 변화량에 따라 정상 제어를 수행해야 한다.
 
-### 4.2 Req_011 변경
+### 5.2 하위 SW 요구사항
 
-**변경 전**
+> **SWR-CTRL-006**: ControlCalc는 출력 금지 Flag가 활성화된 동안 `prev_input_steer`를 SafetyPolicy가 전달한 대체 조향값 `0`으로 갱신하지 않아야 한다.
 
-> 시스템은 현재 상태와 Fault 정보를 외부 진단·모니터링 환경에 제공해야 한다.
+> **SWR-CTRL-007**: ControlCalc는 출력 금지 Flag가 해제된 첫 주기에 현재 조향 입력을 `prev_input_steer`에 저장하고 PWM Duty와 방향 출력을 비활성 상태로 유지해야 한다.
 
-**변경 후**
+> **SWR-CTRL-008**: ControlCalc는 정상 복귀 기준값 동기화가 완료된 다음 주기부터 현재 입력과 `prev_input_steer`의 차이를 이용하여 방향과 PWM Duty를 계산해야 한다.
 
-> 시스템은 현재 상태와 Fault 정보를 외부 진단·모니터링 환경에 제공해야 하며, 통신 갱신 이상, 조향 입력 Invalid 및 내부 실행 이상을 원인별로 구분할 수 있어야 한다. 복수 Fault가 동시에 발생하면 각 원인을 함께 식별할 수 있어야 한다.
-
-### 4.3 하위 SW 요구사항
-
-> **SWR-SAFE-004**: SW는 FAIL-SAFE 상태에서 정상 조건이 확인될 때마다 정상 복귀 Counter를 증가시키고, 3회 연속 확인된 경우 NORMAL 상태로 전환해야 한다.
-
-> **SWR-SAFE-005**: SW는 정상 복귀 조건 확인 중 Fault가 다시 발생하면 정상 복귀 Counter를 0으로 초기화해야 한다.
-
-> **SWR-MON-002**: SW는 RTE Read 실패, Alive Counter 갱신 이상, 조향값 Invalid 및 WdgM 실행 이상을 원인별 FaultCode로 제공해야 하며, 복수 Fault를 동시에 표현할 수 있어야 한다.
-
-## 5. 추적성 및 영향 분석
-
-### 5.1 정상 복귀 조건
+## 6. 추적성 및 영향 분석
 
 ```text
 CR-003
-└─ HC-05 / SG-05
-   └─ Req_008
-      └─ SYS-F-008 / SYS-DES-008
-         └─ SWR-SAFE-004 / SWR-SAFE-005
-            └─ SWC-003 / SW-IF-005 / RUN-003
-               └─ SWD-SAFE-005 / SWD-SAFE-006 / SWD-SAFE-007
-                  ├─ UT-SAFE-004–007
-                  └─ SYS-TC-REC-001–003
-```
-
-### 5.2 Fault 원인 구분
-
-```text
-CR-003
-└─ Req_011
-   └─ SYS-F-011 / SYS-DES-011
-      └─ SWR-MON-001 / SWR-MON-002 / SWR-MON-003
-         └─ SWC-002 / SWC-003 / SW-IF-003 / SW-IF-005 / SW-IF-008
-            └─ SWD-DIAG-* / SWD-WDG-* / SWD-SAFE-002 / SWD-SAFE-008
-               ├─ App_CanMonitor.c / App_SafetyPolicy.c
-               ├─ UT-DIAG-* / UT-WDG-* / UT-SAFE-*
-               ├─ ITC-SW-009 / ITC-SW-016
-               └─ SYS-TC-MON-001
+└─ Req_008
+   └─ SYS-F-008 / SYS-DES-008
+      └─ SWR-CTRL-006 / SWR-CTRL-007 / SWR-CTRL-008
+         └─ SWC-004 ControlCalc / SW-IF-005
+            └─ App_ControlCalc.c
+               ├─ UT-CTRL-006–009
+               ├─ ITC-SW-017
+               └─ SYS-TC-REC-004–006
 ```
 
 | 대상 | 영향 구분 | 조치 |
 |---|---|---|
-| HC-05 / SG-05 | 직접·간접 영향 | 복귀 불안정 위험과 변경 근거 갱신 |
-| Req_008 | 직접 영향 | 정상 3회 복귀 및 Fault 재발 조건 반영 |
-| Req_011 | 직접 영향 | Fault 원인별 식별 조건 명확화 |
-| SWR-SAFE-004/005 | 직접 영향 | Counter 증가·초기화 요구사항 반영 |
-| SWR-MON-002 | 직접 영향 | 원인 구분 가능한 FaultCode 요구로 변경 |
-| SW-IF-003 | 직접 영향 | CanMonitor→SafetyPolicy 데이터에 FaultCode 반영 |
-| SW-IF-005 | 간접 영향 | 제어용 출력 금지 Flag 유지 및 진단 경로 검토 |
-| SW-IF-008 | 직접 영향 | 외부 모니터링용 FaultCode 정의 |
-| App_CanMonitor.c | 직접 영향 | RTE Read·Alive Counter·Invalid 원인별 비트 설정 |
-| App_SafetyPolicy.c | 직접 영향 | CanMonitor와 WdgM FaultCode 통합 |
-| ControlCalc / Pwm_Actuator | 회귀 영향 | 출력 차단과 정상 복귀 후 출력 재개 확인 |
-| AUTOSAR RTE 설정 | 직접 영향 | Port Data Element 자료형 및 Interface 갱신 |
-| 단위·통합·시스템시험 | 직접 영향 | Fault별 코드와 전달·관측 시험 추가 |
+| Req_008 | 직접 영향 | 정상 복귀 시 기준값 동기화 조건 추가 |
+| System Design | 직접 영향 | FAIL-SAFE 해제 후 동기화 주기 추가 |
+| SWR-CTRL-006–008 | 신규 | 기준값 보존·동기화·제어 재개 요구사항 정의 |
+| App_SafetyPolicy.c | 회귀 영향 | 정상 복귀 조건과 출력 금지 Flag 해제 시점 확인 |
+| App_ControlCalc.c | 직접 영향 | FAIL-SAFE 이력 저장 및 복귀 첫 주기 처리 추가 |
+| App_Pwm_Actuator.c | 회귀 영향 | 동기화 주기에 PWM과 방향 출력이 차단되는지 확인 |
+| AUTOSAR RTE Interface | 영향 없음 | 기존 조향값 및 Boolean Flag Interface 유지 |
+| 단위·통합·시스템시험 | 직접 영향 | 정상 복귀 경계와 급출력 방지 시험 추가 |
 
-## 6. 설계 및 구현 변경
+## 7. 설계 및 구현 변경
 
-### 6.1 정상 복귀 로직
+### 7.1 변경 원칙
+
+- FAIL-SAFE 상태에서는 PWM Duty와 방향 출력을 기존과 같이 차단한다.
+- FAIL-SAFE 상태에서 전달되는 대체 조향값 `0`은 `prev_input_steer`에 저장하지 않는다.
+- 출력 금지 Flag가 `TRUE`에서 `FALSE`로 바뀐 첫 주기를 정상 복귀 동기화 주기로 판단한다.
+- 동기화 주기에는 현재 실제 조향 입력을 `prev_input_steer`에 저장하되 모터는 구동하지 않는다.
+- 다음 주기부터 동기화된 기준값과 현재 입력의 차이로 제어 출력을 계산한다.
+- 기존 RTE Interface는 변경하지 않고 ControlCalc 내부 상태만 추가한다.
+
+### 7.2 변경 로직 예시
 
 ```c
-if (faultDetected == TRUE)
-{
-    recoveryCount = 0U;
-    systemState = FAIL_SAFE;
-}
-else if (systemState == FAIL_SAFE)
-{
-    recoveryCount++;
+static sint16 prev_input_steer = 0;
+static boolean was_failsafe = FALSE;
 
-    if (recoveryCount >= 3U)
-    {
-        recoveryCount = 0U;
-        systemState = NORMAL;
-    }
+if (input_flag == TRUE)
+{
+    AbsoluteDutyCycle = 0;
+    go_flag = FALSE;
+    Left = FALSE;
+    Right = FALSE;
+    was_failsafe = TRUE;
+}
+else if (was_failsafe == TRUE)
+{
+    /* 정상 복귀 첫 주기: 현재 입력을 기준값으로 동기화 */
+    prev_input_steer = input_steer;
+
+    AbsoluteDutyCycle = 0;
+    go_flag = FALSE;
+    Left = FALSE;
+    Right = FALSE;
+    was_failsafe = FALSE;
+}
+else
+{
+    steer_diff = input_steer - prev_input_steer;
+
+    /* 기존 방향 및 PWM Duty 계산 */
+
+    prev_input_steer = input_steer;
 }
 ```
 
-### 6.2 FaultCode 정의
+기존 함수 마지막의 무조건 갱신 코드는 제거하고 정상 제어 또는 정상 복귀 동기화 조건에서만 `prev_input_steer`를 갱신한다.
 
-| 값 | Fault 원인 |
-|---:|---|
-| `0x00` | 정상 |
-| `0x01` | RTE Read 실패 |
-| `0x02` | Alive Counter 갱신 이상 |
-| `0x04` | 조향값 Invalid |
-| `0x08` | WdgM FAILED |
-| `0x10` | WdgM EXPIRED |
-| `0x20` | WdgM STOPPED |
+## 8. 변경 후 예상 동작
 
-```c
-#define FAULT_NONE           (0x00U)
-#define FAULT_RTE_READ       (0x01U)
-#define FAULT_ALIVE_COUNTER  (0x02U)
-#define FAULT_STEER_INVALID  (0x04U)
-#define FAULT_WDGM_FAILED    (0x08U)
-#define FAULT_WDGM_EXPIRED   (0x10U)
-#define FAULT_WDGM_STOPPED   (0x20U)
-```
+| 실행 주기 | 상태 | 전달 조향값 | 기준값 처리 | 계산 변화량 | 출력 |
+|---|---|---:|---|---:|---|
+| T0 | NORMAL | 250 | `prev = 250` | 정상 변화량 | 정상 제어 |
+| T1 | FAIL-SAFE | 0 | 기존 기준값 보존 | 계산하지 않음 | PWM 0 |
+| T2 | FAIL-SAFE | 0 | 기존 기준값 보존 | 계산하지 않음 | PWM 0 |
+| T3 | 정상 복귀 첫 주기 | 300 | `prev = 300`으로 동기화 | 계산하지 않음 | PWM 0 |
+| T4 | NORMAL | 302 | 동기화 기준 사용 | 2 | 정상 제어 |
 
-### 6.3 처리 원칙
+정상 복귀 중 실제 조향 위치가 변경되어도 첫 주기에는 해당 위치를 새로운 기준으로 설정하므로 복귀 순간의 급격한 모터 동작을 방지할 수 있다.
 
-- CanMonitor는 진단 결과에 해당하는 비트를 설정하여 SafetyPolicy로 전달한다.
-- SafetyPolicy는 CanMonitor FaultCode와 WdgM FaultCode를 OR 연산으로 통합한다.
-- 통합 FaultCode가 `FAULT_NONE`이 아니면 FAIL-SAFE로 전환한다.
-- ControlCalc와 Pwm_Actuator에는 기존 출력 금지 Boolean Flag를 유지하여 변경 범위를 제한한다.
-- 통합 FaultCode는 외부 모니터링 Interface로 제공하여 CANoe에서 원인별로 관측한다.
+## 9. 검증 변경 및 회귀시험
 
-## 7. 검증 변경 및 회귀시험
-
-### 7.1 정상 복귀 시험
+### 9.1 단위시험
 
 | 시험 ID | 시험 조건 | 기대 결과 |
 |---|---|---|
-| UT-SAFE-004 | 정상 조건 1회 | Counter 1, FAIL-SAFE 유지 |
-| UT-SAFE-005 | 정상 조건 2회 | Counter 2, FAIL-SAFE 유지 |
-| UT-SAFE-006 | 정상 조건 3회 | NORMAL 복귀, Counter 초기화 |
-| UT-SAFE-007 | 정상 2회 후 Fault 재발 | Counter 0, FAIL-SAFE 유지 |
-| SYS-TC-REC-001 | Fault 해제 후 정상 1·2회 | PWM 0 및 FAIL-SAFE 유지 |
-| SYS-TC-REC-002 | 정상 조건 3회 연속 | NORMAL 복귀 및 정상 출력 허용 |
-| SYS-TC-REC-003 | 정상 2회 후 Fault 재발 | 복귀 취소 및 FAIL-SAFE 유지 |
+| UT-CTRL-006 | FAIL-SAFE 상태에서 조향값 0 전달 | `prev_input_steer`를 0으로 갱신하지 않고 출력 차단 |
+| UT-CTRL-007 | FAIL-SAFE 해제 첫 주기에 조향값 300 전달 | `prev_input_steer = 300`, PWM 0, 방향 출력 없음 |
+| UT-CTRL-008 | 동기화 다음 주기에 조향값 302 전달 | 변화량 2를 기준으로 정상 제어 |
+| UT-CTRL-009 | 동기화 다음 주기에 조향값 310 전달 | 변화량 10을 기준으로 방향과 PWM 계산 |
 
-### 7.2 FaultCode 시험
+### 9.2 통합·시스템시험
 
 | 시험 ID | 시험 조건 | 기대 결과 |
 |---|---|---|
-| UT-DIAG-FC-001 | RTE Read 실패 주입 | FaultCode `0x01` 출력 |
-| UT-DIAG-FC-002 | 동일 Alive Counter 반복 | FaultCode `0x02` 출력 |
-| UT-DIAG-FC-003 | 조향값 범위 이탈 | FaultCode `0x04` 출력 |
-| UT-WDG-FC-001 | WdgM FAILED 주입 | FaultCode에 `0x08` 설정 |
-| UT-WDG-FC-002 | WdgM EXPIRED 주입 | FaultCode에 `0x10` 설정 |
-| UT-WDG-FC-003 | WdgM STOPPED 주입 | FaultCode에 `0x20` 설정 |
-| UT-SAFE-FC-001 | 통신 Fault와 WdgM Fault 동시 주입 | 두 Fault 비트 유지 및 FAIL-SAFE 전환 |
-| ITC-SW-FC-001 | CanMonitor→SafetyPolicy→Monitoring 연계 | FaultCode가 변형 없이 전달됨 |
-| SYS-TC-MON-001 | Timeout·Invalid·WdgM Fault 순차 주입 | CANoe에서 원인별 FaultCode와 상태 구분 |
+| ITC-SW-017 | SafetyPolicy Flag 해제 → ControlCalc → PwmActuator | 복귀 첫 주기 PWM 0 및 방향 출력 차단 |
+| SYS-TC-REC-004 | FAIL-SAFE 중 실제 조향 입력을 300으로 이동 후 정상 복귀 | 복귀 순간 모터 급동작 없음 |
+| SYS-TC-REC-005 | 정상 복귀 후 조향 입력을 점진적으로 변경 | 동기화 다음 주기부터 입력 변화량에 따라 정상 동작 |
+| SYS-TC-REC-006 | 동기화 주기 직후 다시 FAIL-SAFE 진입 | 출력 즉시 차단 및 복귀 이력 재설정 |
 
-회귀시험은 정상 조향 출력, Timeout, Invalid, WdgM Fault, PWM 차단, 방향 출력 차단 및 정상 복귀 후 출력 재개를 대상으로 한다.
+회귀시험은 정상 조향 출력, FAIL-SAFE 진입 시 PWM·방향 차단, 정상 복귀 조건 및 복귀 후 정상 제어 재개를 대상으로 한다.
 
-## 8. 형상 및 버전관리 계획
+## 10. 형상 및 버전관리 계획
 
-### 8.1 기준선
+### 10.1 기준선
 
 ```text
-BL-01: 정상 1회 복귀 + 단일 Boolean Fault Flag
-BL-02: 정상 3회 연속 복귀 + 원인별 FaultCode (검증 완료 기준선)
+BL-01: FAIL-SAFE 상태에서 prev_input_steer가 0으로 갱신되는 기존 로직
+BL-02: 정상 복귀 첫 주기에 현재 조향 입력을 기준값으로 동기화하는 로직
 ```
 
-### 8.2 Git 관리 예시
+### 10.2 Git 관리 예시
 
 ```bash
-git checkout -b change/CR-003-safety-diagnostics
-git commit -m "CR-003 Update recovery and monitoring requirements"
-git commit -m "CR-003 Add recovery counter and fault code"
-git commit -m "CR-003 Update AUTOSAR interfaces"
-git commit -m "CR-003 Add recovery and fault code tests"
+git checkout -b change/CR-003-bumpless-recovery
+git commit -m "CR-003 Update fail-safe recovery requirements"
+git commit -m "CR-003 Synchronize control reference after fail-safe"
+git commit -m "CR-003 Add recovery transition tests"
 git commit -m "CR-003 Update traceability matrix"
-git tag -a BL-02 -m "CR-003 verified safety diagnostics baseline"
+git tag -a BL-02 -m "CR-003 verified fail-safe recovery baseline"
 ```
 
-### 8.3 변경 대상 산출물
+### 10.3 변경 대상 산출물
 
 | 산출물 | 변경 내용 |
 |---|---|
-| `00d_HARA_Worksheet.md` | HC-05 변경 근거와 진단성 영향 검토 |
-| `01_Requirements.md` | Req_008, Req_011 변경 |
-| `02_System_Design.md` | 상태 전이와 Fault 관측 구조 변경 |
-| `03_SW_Requirements.md` | SWR-SAFE-004/005, SWR-MON-002 변경 |
-| `04_SW_Architecture_Design.md` | SW-IF-003/005/008 및 SafetyPolicy 책임 변경 |
-| `05_SW_Detailed_Design_Unit_Construction.md` | Counter·FaultCode·RTE Interface 상세 반영 |
-| `06_SW_Unit_Verification.md` | 복귀 경계값 및 Fault별 단위시험 추가 |
-| `07_SW_Integration_Verification.md` | FaultCode 전달 및 출력 경로 회귀시험 추가 |
-| `08_System_Verification.md` | 복귀·Fault 재발·원인별 모니터링 시험 변경 |
-| `Traceability_Matrix.md` | CR-003과 전체 영향 ID 연결 |
-| `App_CanMonitor.c` | 원인별 FaultCode 생성 |
-| `App_SafetyPolicy.c` | FaultCode 통합 및 모니터링 출력 |
-| AUTOSAR RTE 설정 | FaultCode Data Element와 Sender-Receiver Interface 변경 |
+| `01_Requirements.md` | Req_008에 정상 복귀 동기화 조건 추가 |
+| `02_System_Design.md` | FAIL-SAFE 해제 후 동기화 동작 반영 |
+| `03_SW_Requirements.md` | SWR-CTRL-006–008 추가 |
+| `04_SW_Architecture_Design.md` | ControlCalc의 정상 복귀 처리 책임 반영 |
+| `05_SW_Detailed_Design_Unit_Construction.md` | `was_failsafe`와 기준값 갱신 조건 반영 |
+| `06_SW_Unit_Verification.md` | 기준값 보존·동기화 단위시험 추가 |
+| `07_SW_Integration_Verification.md` | Flag 해제부터 Actuator 출력까지 연계시험 추가 |
+| `08_System_Verification.md` | 정상 복귀 순간 급출력 방지 시험 추가 |
+| `Traceability_Matrix.md` | CR-003과 영향 요구사항·설계·시험 연결 |
+| `App_ControlCalc.c` | 무조건 기준값 갱신 제거 및 복귀 동기화 로직 추가 |
 
-## 9. 반영 절차
+## 11. 반영 절차
 
-1. 단일 Boolean Fault Flag와 정상 1회 복귀 상태를 변경 전 기준선 `BL-01`로 확정한다.
-2. CR-003을 Open 상태로 등록하고 영향 분석 결과를 승인한다.
-3. 요구사항부터 아키텍처·상세설계까지 상위에서 하위 순서로 수정한다.
-4. 정상 복귀 로직, FaultCode 코드 및 AUTOSAR Interface 설정을 변경한다.
+1. 시스템검증 결과와 재현 조건을 CR-003에 등록한다.
+2. Req_008 및 하위 SW 요구사항의 변경 영향을 검토한다.
+3. 시스템설계, SW 요구사항, 아키텍처 및 상세설계를 상위에서 하위 순서로 수정한다.
+4. ControlCalc의 기준값 보존 및 정상 복귀 동기화 로직을 구현한다.
 5. 단위·통합·시스템시험과 회귀시험을 수행한다.
-6. 결과와 결함·수정 Commit을 각 Test Case ID에 연결한다.
-7. `Traceability_Matrix.md`와 모든 변경 문서의 Version·변경이력을 갱신한다.
+6. 시험 결과와 수정 Commit을 관련 Test Case ID에 연결한다.
+7. `Traceability_Matrix.md`와 변경 대상 문서의 Version 및 변경이력을 갱신한다.
 8. 검증 완료 후 CR-003을 Closed로 전환하고 `BL-02` Tag를 생성한다.
 
 ---
 
-본 문서는 포트폴리오용 변경관리 시나리오의 기준 문서다. 시스템검증과 추적성 검토에서 발견된 문제를 요구사항, 설계, 구현, 시험 및 형상관리까지 전개하는 과정을 재현한다.
+본 문서는 시스템검증에서 발견된 정상 복귀 순간의 급격한 모터 동작을 요구사항, 설계, 구현, 시험 및 형상관리까지 전개하는 포트폴리오용 변경관리 시나리오다.
