@@ -1,12 +1,12 @@
 # 소프트웨어 요구사항 명세서 (Software Requirements Specification)
 
-**Document ID**: STEER-03-SWRS
-**ISO 26262 Reference**: Part 6, Cl.6
-**ASPICE Reference**: SWE.1
-**Version**: 1.3
-**Date**: 2026-08-27
-**Status**: Draft
-**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템
+**Document ID**: STEER-03-SWRS  
+**ISO 26262 Reference**: Part 6, Cl.6  
+**ASPICE Reference**: SWE.1  
+**Version**: 1.3  
+**Date**: 2026-08-27  
+**Status**: Draft  
+**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
 **Subtitle**: 조향 데이터 갱신 감시, 입력 유효성 진단, 실행 상태 감시 및 FAIL-SAFE 제어
 
 ---
