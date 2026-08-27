@@ -1,13 +1,13 @@
 # 시스템 아키텍처 설계 명세서 (System Architecture Design Specification)
 
-**Document ID**: STEER-02-SADS
-**ISO 26262 Reference**: Part 4, Cl.7 (System Design)
-**ASPICE Reference**: SYS.3 (System Architectural Design)
-**Version**: 2.2
-**Date**: 2026-08-27
-**Status**: Draft
-**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템
-**Subtitle**: 조향 입력, ECU 간 통신, 안전 판단 및 조향 출력 시스템 구조
+**Document ID**: STEER-02-SADS  
+**ISO 26262 Reference**: Part 4, Cl.7 (System Design)  
+**ASPICE Reference**: SYS.3 (System Architectural Design)  
+**Version**: 2.2  
+**Date**: 2026-08-27  
+**Status**: Draft  
+**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
+**Subtitle**: 조향 입력, ECU 간 통신, 안전 판단 및 조향 출력 시스템 구조  
 
 ---
 
