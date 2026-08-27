@@ -127,7 +127,7 @@ SW 실행 상태 감시를 위한 구체적인 AUTOSAR WdgM 구성, Supervised E
 
 | SW Req. ID | SW 요구사항 | 상위 추적 ID |
 |---|---|---|
-| **SWR-REC-001** | 출력 ECU SW는 모든 Fault 조건이 해제된 경우 정상 상태 복귀 조건 확인을 시작해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
+| **SWR-REC-001** | Fault 발생 시 정상 상태 복귀 조건 확인을 시작해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
 | **SWR-REC-002** | 출력 ECU SW는 정상 조건이 **연속 3회 확인된 경우에만** FAIL-SAFE 상태에서 NORMAL 상태로 복귀해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
 | **SWR-REC-003** | 정상 상태 복귀 조건 확인 중 Fault가 다시 감지된 경우 정상 확인 누적 상태를 초기화하고 FAIL-SAFE 상태를 유지해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
 | **SWR-REC-004** | NORMAL 상태로 복귀한 이후에는 정상 조향 제어 출력을 다시 활성화해야 한다. | Req_008, Req_009 / SYS-F-008, SYS-F-009 / SYS-DES-008, SYS-DES-009 |
