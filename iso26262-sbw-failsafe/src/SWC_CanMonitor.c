@@ -6,7 +6,7 @@
 /* Alive Counter 불연속 허용 횟수 */
 #define SEQUENCE_ERROR_LIMIT     (2U)
 
-/* Alive Counter 정상 복구 확인 횟수 */
+/* FAIL-SAFE 이후 정상 Counter 복구 확인 횟수 */
 #define RECOVERY_VALID_LIMIT     (3U)
 
 /*
@@ -15,7 +15,18 @@
 typedef enum
 {
     ALIVE_STATE_NORMAL = 0,
-    ALIVE_STATE_RECOVERY
+
+    /*
+     * FAIL-SAFE 진입 후 첫 번째 정상 Counter를
+     * 기다리는 상태
+     */
+    ALIVE_STATE_RECOVERY_FIRST,
+
+    /*
+     * 첫 번째 Counter 저장 후 연속적인
+     * Counter 증가를 확인하는 상태
+     */
+    ALIVE_STATE_RECOVERY_CHECK
 } AliveMonitorState;
 
 static uint8 prevAliveCounter = 0U;
@@ -59,10 +70,16 @@ void CanMonitor_func(void)
         rteFault = TRUE;
 
         /*
-         * 유효한 Counter를 확인할 수 없으므로
-         * 진행 중인 정상 복구 확인 횟수를 초기화한다.
+         * 복구 과정에서 RTE Read가 실패하면
+         * 정상 복구 확인을 처음부터 다시 수행한다.
          */
-        recoveryCount = 0U;
+        if (aliveState != ALIVE_STATE_NORMAL)
+        {
+            aliveState =
+                ALIVE_STATE_RECOVERY_FIRST;
+
+            recoveryCount = 0U;
+        }
     }
     else
     {
@@ -90,24 +107,20 @@ void CanMonitor_func(void)
         }
         else
         {
-            /*
-             * 이전 Counter를 기준으로
-             * 다음 예상 Counter를 계산한다.
-             *
-             * 자료형이 uint8이므로
-             * 255 다음에는 0으로 순환한다.
-             */
-            expectedAliveCounter =
-                (uint8)(prevAliveCounter + 1U);
-
             switch (aliveState)
             {
                 case ALIVE_STATE_NORMAL:
                 {
                     /*
-                     * 현재 Counter가 예상값과
-                     * 일치하는지 확인한다.
+                     * 이전 Counter를 기준으로
+                     * 다음 예상 Counter를 계산한다.
+                     *
+                     * 자료형이 uint8이므로
+                     * 255 다음에는 0으로 순환한다.
                      */
+                    expectedAliveCounter =
+                        (uint8)(prevAliveCounter + 1U);
+
                     if (aliveCounter ==
                         expectedAliveCounter)
                     {
@@ -116,6 +129,13 @@ void CanMonitor_func(void)
                          * 연속 Sequence Error 횟수를 초기화한다.
                          */
                         sequenceErrorCnt = 0U;
+
+                        /*
+                         * 현재 Counter를 다음 주기의
+                         * 비교 기준값으로 저장한다.
+                         */
+                        prevAliveCounter =
+                            aliveCounter;
                     }
                     else
                     {
@@ -129,41 +149,75 @@ void CanMonitor_func(void)
                             sequenceErrorCnt++;
                         }
 
-                        /*
-                         * Sequence Error가 설정된 횟수만큼
-                         * 연속 확인되면 복구 확인 상태로 전환한다.
-                         */
                         if (sequenceErrorCnt >=
                             SEQUENCE_ERROR_LIMIT)
                         {
+                            /*
+                             * CR-004 변경사항
+                             *
+                             * Sequence Error가 2회 연속
+                             * 확인되면 복구 첫 수신 대기
+                             * 상태로 전환한다.
+                             */
                             aliveState =
-                                ALIVE_STATE_RECOVERY;
+                                ALIVE_STATE_RECOVERY_FIRST;
 
                             sequenceErrorCnt = 0U;
+                            recoveryCount = 0U;
 
                             /*
-                             * 현재 Counter를 정상 복구 확인의
-                             * 첫 번째 값으로 설정한다.
+                             * FAIL-SAFE 진입에 사용된
+                             * 현재 Counter는 prevAliveCounter에
+                             * 저장하지 않는다.
+                             *
+                             * 다음 주기에 수신되는 Counter부터
+                             * 새로운 복구 시퀀스를 구성한다.
                              */
-                            recoveryCount = 1U;
+                        }
+                        else
+                        {
+                            /*
+                             * Sequence Error가 허용 횟수에
+                             * 도달하지 않은 경우 현재 Counter를
+                             * 다음 검사의 기준값으로 저장한다.
+                             */
+                            prevAliveCounter =
+                                aliveCounter;
                         }
                     }
-
-                    /*
-                     * 현재 Counter를 다음 실행 주기의
-                     * 비교 기준값으로 저장한다.
-                     */
-                    prevAliveCounter = aliveCounter;
 
                     break;
                 }
 
-                case ALIVE_STATE_RECOVERY:
+                case ALIVE_STATE_RECOVERY_FIRST:
                 {
                     /*
-                     * 복구 상태에서 현재 Counter가
-                     * 예상값과 일치하는지 확인한다.
+                     * CR-004 변경사항
+                     *
+                     * FAIL-SAFE 진입 이후 처음 수신된
+                     * Counter를 새로운 복구 시퀀스의
+                     * 첫 번째 값으로 저장한다.
                      */
+                    prevAliveCounter =
+                        aliveCounter;
+
+                    recoveryCount = 1U;
+
+                    /*
+                     * 첫 번째 복구 Counter가 저장되었으므로
+                     * 연속 증가 확인 상태로 전환한다.
+                     */
+                    aliveState =
+                        ALIVE_STATE_RECOVERY_CHECK;
+
+                    break;
+                }
+
+                case ALIVE_STATE_RECOVERY_CHECK:
+                {
+                    expectedAliveCounter =
+                        (uint8)(prevAliveCounter + 1U);
+
                     if (aliveCounter ==
                         expectedAliveCounter)
                     {
@@ -185,8 +239,8 @@ void CanMonitor_func(void)
                             aliveCounter;
 
                         /*
-                         * 정상 Counter가 설정된 횟수만큼
-                         * 확인되면 정상 상태로 전환한다.
+                         * FAIL-SAFE 진입 이후 정상 Counter가
+                         * 3회 연속 확인되면 NORMAL로 복귀한다.
                          */
                         if (recoveryCount >=
                             RECOVERY_VALID_LIMIT)
@@ -201,14 +255,24 @@ void CanMonitor_func(void)
                     else
                     {
                         /*
-                         * 복구 확인 중 동일하거나 불연속적인
-                         * Counter가 수신되면 현재 Counter부터
-                         * 정상 복구 확인을 다시 시작한다.
+                         * CR-004 변경사항
+                         *
+                         * 복구 중 동일하거나 불연속적인
+                         * Counter가 수신되면 해당 Counter를
+                         * 정상 복구 시퀀스에 포함하지 않는다.
                          */
-                        prevAliveCounter =
-                            aliveCounter;
+                        aliveState =
+                            ALIVE_STATE_RECOVERY_FIRST;
 
-                        recoveryCount = 1U;
+                        recoveryCount = 0U;
+
+                        /*
+                         * 현재 Counter는 복구 기준값으로
+                         * 저장하지 않는다.
+                         *
+                         * 다음 주기에 수신되는 Counter부터
+                         * 새로운 복구 시퀀스를 시작한다.
+                         */
                     }
 
                     break;
@@ -218,13 +282,11 @@ void CanMonitor_func(void)
                 {
                     /*
                      * 정의되지 않은 상태에서는
-                     * 정상 상태로 초기화한다.
+                     * 안전하게 복구 첫 수신 대기 상태로
+                     * 전환한다.
                      */
                     aliveState =
-                        ALIVE_STATE_NORMAL;
-
-                    prevAliveCounter =
-                        aliveCounter;
+                        ALIVE_STATE_RECOVERY_FIRST;
 
                     sequenceErrorCnt = 0U;
                     recoveryCount = 0U;
@@ -236,11 +298,10 @@ void CanMonitor_func(void)
     }
 
     /*
-     * 복구 확인 상태, RTE 수신 실패 또는
-     * 조향값 범위 이탈 중 하나라도 발생하면
-     * SafetyPolicy에 전달할 Flag를 활성화한다.
+     * NORMAL 상태가 아니면 Alive Counter Fault가
+     * 유지되고 있는 것으로 판단한다.
      */
-    if ((aliveState == ALIVE_STATE_RECOVERY) ||
+    if ((aliveState != ALIVE_STATE_NORMAL) ||
         (rteFault == TRUE) ||
         (angleFault == TRUE))
     {
