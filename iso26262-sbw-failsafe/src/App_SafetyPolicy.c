@@ -53,7 +53,7 @@ void SafetyPolicy_PreCheck_func(void)
     if (curFault == TRUE)
     {
         gIsFailsafe = TRUE;
-        gNormalRecoverCnt = 0U;
+        gNormalRecoverCnt = 1U;
         outFlag = TRUE;
         outSteer = 0;
     }
