@@ -1,13 +1,13 @@
 # 요구사항 명세서 (System Requirements Specification)
 
-**Document ID**: STEER-01-SRS
-**ISO 26262 Reference**: Part 4, System Requirements Specification
-**ASPICE Reference**: SYS.2 (System Requirements Analysis)
-**Version**: 1.5
-**Date**: 2026-08-27
-**Status**: Draft
-**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템
-**Subtitle**: 조향 데이터 갱신 이상, 비정상 입력 및 SW 실행 이상에 대한 시스템 요구사항
+**Document ID**: STEER-01-SRS  
+**ISO 26262 Reference**: Part 4, System Requirements Specification  
+**ASPICE Reference**: SYS.2 (System Requirements Analysis)  
+**Version**: 1.5  
+**Date**: 2026-08-27  
+**Status**: Draft  
+**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
+**Subtitle**: 조향 데이터 갱신 이상, 비정상 입력 및 SW 실행 이상에 대한 시스템 요구사항  
 
 ---
 
