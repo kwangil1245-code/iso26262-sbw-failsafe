@@ -3,8 +3,8 @@
 **Document ID**: STEER-06-SWUV  
 **ISO 26262 Reference**: Part 6, Cl.9  
 **ASPICE Reference**: SWE.4 (Software Unit Verification)  
-**Version**: 1.5  
-**Date**: 2026-08-27  
+**Version**: 1.6  
+**Date**: 2026-08-28  
 **Status**: Completed  
 **Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
 **Subtitle**: SW Unit 기능, Fault 진단, FAIL-SAFE 및 정상 복귀 단위검증
@@ -95,9 +95,9 @@ AUTOSAR Runtime 및 실제 ECU 환경에 의존하는 RTE, WdgM, IoHwAb Interfac
 
 ---
 
-# 5. UNIT-001 Steering Sensor Unit 시험
+## 5. UNIT-001 Steering Sensor Unit 시험
 
-## 5.1 시험 목적
+### 5.1 시험 목적
 
 조향 입력값 변환, Alive Counter 생성 및 RTE 출력 기능을 검증한다.
 
@@ -111,9 +111,9 @@ AUTOSAR Runtime 및 실제 ECU 환경에 의존하는 RTE, WdgM, IoHwAb Interfac
 
 ---
 
-# 6. UNIT-002 CAN Monitor Unit 시험
+## 6. UNIT-002 CAN Monitor Unit 시험
 
-## 6.1 RTE Read 및 기본 Fault 처리
+### 6.1 RTE Read 및 기본 Fault 처리
 
 | TC ID | 시험 조건·입력 | 기대 결과 | 방법 | 추적 ID | 상태 |
 |---|---|---|---|---|---|
@@ -122,7 +122,7 @@ AUTOSAR Runtime 및 실제 ECU 환경에 의존하는 RTE, WdgM, IoHwAb Interfac
 
 ---
 
-## 6.2 조향 입력 유효 범위 시험
+### 6.2 조향 입력 유효 범위 시험
 
 조향 입력의 유효 범위 `-512 ~ 511`에 대해 정상값과 경계값을 검증한다.
 
@@ -135,7 +135,7 @@ AUTOSAR Runtime 및 실제 ECU 환경에 의존하는 RTE, WdgM, IoHwAb Interfac
 
 ---
 
-## 6.3 Alive Counter 갱신 진단 시험
+### 6.3 Alive Counter 갱신 진단 시험
 
 Alive Counter의 변화 여부를 이용하여 조향 데이터가 정상적으로 갱신되는지 검증한다.
 
@@ -148,9 +148,9 @@ Alive Counter의 변화 여부를 이용하여 조향 데이터가 정상적으�
 
 ---
 
-# 7. UNIT-003 Safety Policy Unit 시험
+## 7. UNIT-003 Safety Policy Unit 시험
 
-## 7.1 NORMAL 및 FAIL-SAFE 전환
+### 7.1 NORMAL 및 FAIL-SAFE 전환
 
 CanMonitor의 Fault 결과와 SW 실행 상태를 통합하여 FAIL-SAFE 상태가 올바르게 결정되는지 검증한다.
 
@@ -163,7 +163,7 @@ CanMonitor의 Fault 결과와 SW 실행 상태를 통합하여 FAIL-SAFE 상태�
 
 ---
 
-## 7.2 정상 상태 복귀
+### 7.2 정상 상태 복귀
 
 FAIL-SAFE 상태에서 Fault가 해제된 이후 정상 조건을 연속적으로 확인해야만 NORMAL 상태로 복귀하는지 검증한다.
 
@@ -176,7 +176,7 @@ FAIL-SAFE 상태에서 Fault가 해제된 이후 정상 조건을 연속적으�
 
 ---
 
-# 8. UNIT-004 SW Execution Status Evaluation Unit 시험
+## 8. UNIT-004 SW Execution Status Evaluation Unit 시험
 
 WdgM Global Status에 따라 SW 실행 Fault가 올바르게 판정되는지 검증한다.
 
@@ -190,7 +190,7 @@ WdgM Global Status에 따라 SW 실행 Fault가 올바르게 판정되는지 검
 
 ---
 
-# 9. UNIT-005 Control Calculation Unit 시험
+## 9. UNIT-005 Control Calculation Unit 시험
 
 SafetyPolicy 결과에 따라 정상 조향 제어와 안전 출력 제한이 올바르게 수행되는지 검증한다.
 
@@ -204,11 +204,11 @@ SafetyPolicy 결과에 따라 정상 조향 제어와 안전 출력 제한이 �
 | UT-CTRL-006 | 절대 변화량 `256` | 정의된 Relative Duty 및 PWM 계산 결과 출력 | VM-01 | UNIT-005 / SWD-CTRL-006 ~ SWD-CTRL-008 / SWR-CTRL-001 | PASS |
 | UT-CTRL-007 | 절대 변화량 `512` | 변화량 상한 기준 최대 계산 결과 출력 | VM-02 | UNIT-005 / SWD-CTRL-006 ~ SWD-CTRL-008 / SWR-CTRL-001 | PASS |
 | UT-CTRL-008 | 절대 변화량 `512` 초과 | 계산 입력이 512로 제한되고 PWM 상한을 초과하지 않음 | VM-02 | UNIT-005 / SWD-CTRL-006, SWD-CTRL-008 / SWR-CTRL-001 | PASS |
-| UT-CTRL-009 | 정상 입력으로 함수 연속 호출 | 현재 조향값이 다음 호출의 이전 조향값으로 저장되고 RTE 결과 출력 | VM-01 | UNIT-005 / SWD-CTRL-010 / SWR-CTRL-001, SWR-ACT-001 | PASS |
+| UT-CTRL-009 | 정상 입력으로 함수 연속 호출 | 현재 조향값이 다음 호출의 이전 조향값으로 저장되고 RTE 결과 출력 | VM-01 | UNIT-005 / SWD-CTRL-010 / SWR-REC-004, SWR-CTRL-001, SWR-ACT-001 | PASS |
 
 ---
 
-# 10. UNIT-006 PWM Actuator Unit 시험
+## 10. UNIT-006 PWM Actuator Unit 시험
 
 ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 올바르게 반영되고, 출력 금지 상태에서 안전 출력이 적용되는지 검증한다.
 
@@ -224,28 +224,28 @@ ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 �
 
 ---
 
-# 11. 코드 리뷰
+## 11. 코드 리뷰
 
 동적 단위시험과 별도로 구현 코드가 상세설계와 일치하는지 기본적인 코드 리뷰를 수행한다.
 
 별도의 정적 분석 도구를 이용한 MISRA C 검사나 자동 정적 분석은 본 프로젝트의 검증 범위에 포함하지 않는다.
 
-## 11.1 코드 리뷰 항목
+### 11.1 코드 리뷰 항목
 
-| Check ID | 검토 항목 | 합격 기준 | 대상 | 상태 |
+| Review ID | 검토 항목 | 합격 기준 | 대상 | 상태 |
 |---|---|---|---|---|
-| CR-001 | 초기화 | 정적 변수 및 출력값이 정의된 초기 상태를 가짐 | UNIT-001 ~ UNIT-006 | PASS |
-| CR-002 | 자료형 | 주요 연산에서 의도하지 않은 부호 및 폭 변환이 없음 | UNIT-001, UNIT-002, UNIT-005, UNIT-006 | PASS |
-| CR-003 | 반환값 처리 | 안전 관련 RTE Read / Call 반환값 처리 누락 여부 확인 | UNIT-001 ~ UNIT-006 | PASS |
-| CR-004 | 상세설계 일치성 | 코드가 관련 `SWD-*`의 처리 순서와 조건을 구현함 | UNIT-001 ~ UNIT-006 | PASS |
-| CR-005 | Interface 일치성 | Port, Data Element, 자료형 및 데이터 방향이 `SW-IF-*`와 일치함 | UNIT-001 ~ UNIT-006 | PASS |
-| CR-006 | 안전 출력 우선성 | Fault 경로에서 정상 제어보다 안전 출력 제한이 우선함 | UNIT-003, UNIT-005, UNIT-006 | PASS |
+| REV-001 | 초기화 | 정적 변수 및 출력값이 정의된 초기 상태를 가짐 | UNIT-001 ~ UNIT-006 | PASS |
+| REV-002 | 자료형 | 주요 연산에서 의도하지 않은 부호 및 폭 변환이 없음 | UNIT-001, UNIT-002, UNIT-005, UNIT-006 | PASS |
+| REV-003 | 반환값 처리 | 안전 관련 RTE Read / Call 반환값 처리 누락 여부 확인 | UNIT-001 ~ UNIT-006 | PASS |
+| REV-004 | 상세설계 일치성 | 코드가 관련 `SWD-*`의 처리 순서와 조건을 구현함 | UNIT-001 ~ UNIT-006 | PASS |
+| REV-005 | Interface 일치성 | Port, Data Element, 자료형 및 데이터 방향이 `SW-IF-*`와 일치함 | UNIT-001 ~ UNIT-006 | PASS |
+| REV-006 | 안전 출력 우선성 | Fault 경로에서 정상 제어보다 안전 출력 제한이 우선함 | UNIT-003, UNIT-005, UNIT-006 | PASS |
 
 ---
 
-# 12. 구조적 커버리지 확인
+## 12. 구조적 커버리지 확인
 
-## 12.1 커버리지 대상
+### 12.1 커버리지 대상
 
 구조적 커버리지는 주요 안전 관련 분기와 Fault 처리 로직을 중심으로 확인한다.
 
@@ -258,7 +258,7 @@ ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 �
 | UNIT-005 | Fault Flag, 방향 임계값 및 PWM 제한 조건 |
 | UNIT-006 | Keep_Go 및 방향 출력 조건 |
 
-## 12.2 안전 관련 주요 Decision
+### 12.2 안전 관련 주요 Decision
 
 | Decision ID | Unit | 주요 조건 |
 |---|---|---|
@@ -278,20 +278,20 @@ ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 �
 
 ---
 
-# 13. 상세설계-단위시험 추적성
+## 13. 상세설계-단위시험 추적성
 
 | Unit | 검증 대상 상세설계 | 관련 Test / Review |
 |---|---|---|
-| UNIT-001 | SWD-IN-001, SWD-IN-002, SWD-COM-001, SWD-COM-002 | UT-IN-001 ~ UT-IN-005, CR-001 ~ CR-005 |
-| UNIT-002 | SWD-DIAG-001 ~ SWD-DIAG-007 | UT-DIAG-001 ~ UT-DIAG-010, CR-001 ~ CR-005 |
-| UNIT-003 | SWD-SAFE-001 ~ SWD-SAFE-004, SWD-REC-001 ~ SWD-REC-004 | UT-SAFE-001 ~ UT-SAFE-004, UT-REC-001 ~ UT-REC-004, CR-001, CR-003 ~ CR-006 |
-| UNIT-004 | SWD-EXEC-001 ~ SWD-EXEC-003 | UT-EXEC-001 ~ UT-EXEC-005, CR-003 ~ CR-005 |
-| UNIT-005 | SWD-CTRL-001 ~ SWD-CTRL-010 | UT-CTRL-001 ~ UT-CTRL-009, CR-001 ~ CR-006 |
-| UNIT-006 | SWD-ACT-001 ~ SWD-ACT-005 | UT-ACT-001 ~ UT-ACT-005, CR-001 ~ CR-006 |
+| UNIT-001 | SWD-IN-001, SWD-IN-002, SWD-COM-001, SWD-COM-002 | UT-IN-001 ~ UT-IN-005, REV-001 ~ REV-005 |
+| UNIT-002 | SWD-DIAG-001 ~ SWD-DIAG-007 | UT-DIAG-001 ~ UT-DIAG-010, REV-001 ~ REV-005 |
+| UNIT-003 | SWD-SAFE-001 ~ SWD-SAFE-004, SWD-REC-001 ~ SWD-REC-004 | UT-SAFE-001 ~ UT-SAFE-004, UT-REC-001 ~ UT-REC-004, REV-001, REV-003 ~ REV-006 |
+| UNIT-004 | SWD-EXEC-001 ~ SWD-EXEC-003 | UT-EXEC-001 ~ UT-EXEC-005, REV-003 ~ REV-005 |
+| UNIT-005 | SWD-CTRL-001 ~ SWD-CTRL-010 | UT-CTRL-001 ~ UT-CTRL-009, REV-001 ~ REV-006 |
+| UNIT-006 | SWD-ACT-001 ~ SWD-ACT-005 | UT-ACT-001 ~ UT-ACT-005, REV-001 ~ REV-006 |
 
 ---
 
-# 14. SW 요구사항-단위시험 추적성
+## 14. SW 요구사항-단위시험 추적성
 
 | SW 요구사항 | 주요 Test Case |
 |---|---|
@@ -302,13 +302,13 @@ ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 �
 | SWR-DIAG-005 ~ SWR-DIAG-008 | UT-DIAG-003 ~ UT-DIAG-006 |
 | SWR-EXEC-001 ~ SWR-EXEC-003 | UT-SAFE-001, UT-SAFE-003, UT-EXEC-001 ~ UT-EXEC-005 |
 | SWR-SAFE-001 ~ SWR-SAFE-005 | UT-SAFE-001 ~ UT-SAFE-004, UT-CTRL-001, UT-ACT-001 |
-| SWR-REC-001 ~ SWR-REC-004 | UT-REC-001 ~ UT-REC-004 |
+| SWR-REC-001 ~ SWR-REC-004 | UT-REC-001 ~ UT-REC-004, UT-CTRL-009 |
 | SWR-CTRL-001, SWR-CTRL-002 | UT-CTRL-002 ~ UT-CTRL-009 |
 | SWR-ACT-001, SWR-ACT-002 | UT-ACT-001 ~ UT-ACT-005 |
 
 ---
 
-# 15. 시험 결과 기록
+## 15. 시험 결과 기록
 
 | Test Group | 주요 검증 내용 | 판정 | 증적 |
 |---|---|---|---|
@@ -321,9 +321,7 @@ ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 �
 | UT-ACT | 하드웨어 출력 및 안전 차단 | PASS | Test Log |
 | Code Review | 상세설계 및 Interface 일치성 | PASS | Review Record |
 
----
-
-## 15.1 결과 요약
+### 15.1 결과 요약
 
 | 항목 | 전체 | PASS | FAIL | BLOCKED | NE |
 |---|---:|---:|---:|---:|---:|
@@ -334,7 +332,7 @@ ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 �
 
 ---
 
-# 16. 단위검증 완료 기준
+## 16. 단위검증 완료 기준
 
 단위검증은 다음 조건을 만족할 경우 완료한 것으로 판단한다.
 
@@ -351,7 +349,7 @@ ControlCalc에서 전달된 최종 출력 명령이 하드웨어 Interface에 �
 
 ---
 
-# 17. 검증 산출물 관계
+## 17. 검증 산출물 관계
 
 ```mermaid
 flowchart LR
