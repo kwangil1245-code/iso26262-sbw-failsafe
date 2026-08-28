@@ -3,19 +3,19 @@
 **Document ID**: STEER-03-SWRS  
 **ISO 26262 Reference**: Part 6, Cl.6  
 **ASPICE Reference**: SWE.1  
-**Version**: 1.4  
-**Date**: 2026-08-27  
+**Version**: 1.5  
+**Date**: 2026-08-28  
 **Status**: Draft  
 **Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
-**Subtitle**: 조향 데이터 갱신 감시, 입력 유효성 진단, 실행 상태 감시 및 FAIL-SAFE 제어
+**Subtitle**: 조향 정보 수신 상태 감시, 입력 유효성 진단, 실행 상태 감시 및 FAIL-SAFE 제어  
 
 ---
 
 ## 1. 문서 목적
 
-본 문서는 `01_Requirements.md`의 시스템 요구사항과 `02_System_Design.md`의 시스템 기능 할당을 소프트웨어 관점의 요구사항으로 구체화한다.
+본 문서는 `01_System_Requirements.md`의 시스템 요구사항과 `02_System_Design.md`의 시스템 기능 할당을 소프트웨어 관점의 요구사항으로 구체화한다.
 
-소프트웨어가 수행해야 하는 기능과 Fault 판정 조건, 안전 상태 전환, 안전 출력 제한 및 정상 상태 복귀 조건을 검증 가능한 수준으로 정의한다.
+소프트웨어가 수행해야 하는 기능, Fault 판정 조건, 안전 상태 전환, 안전 출력 제한 및 정상 상태 복귀 조건을 검증 가능한 수준으로 정의한다.
 
 SWC 구성, Port 및 Interface, Runnable, RTE API, 내부 변수, Task Mapping과 같은 SW 구조 및 구현 상세는 후속 SW Architecture 및 Detailed Design 문서에서 정의한다.
 
@@ -28,7 +28,7 @@ SWC 구성, Port 및 Interface, Runnable, RTE API, 내부 변수, Task Mapping�
 | 상위 추적 | 모든 `SWR-*`는 관련 `Req`, `SYS-F`, `SYS-DES`를 참조한다. |
 | 검증 가능성 | 입력 조건, Fault 판정 기준 및 기대 동작을 명확하게 정의한다. |
 | 구현 독립성 | 특정 SWC, RTE API, 내부 변수 및 코드 구조는 요구사항에서 고정하지 않는다. |
-| 안전 상태 일관성 | 통신, 입력 및 실행 이상은 공통 안전 상태 판단 및 출력 제한 기능으로 연결한다. |
+| 안전 상태 일관성 | 조향 정보 수신 이상, 비정상 조향 입력 및 SW 실행 이상은 공통 안전 상태 판단 및 출력 제한 기능으로 연결한다. |
 | 양방향 추적 | SW Architecture, Detailed Design 및 Test Case는 관련 `SWR-*`를 역참조한다. |
 
 ---
@@ -38,16 +38,18 @@ SWC 구성, Port 및 Interface, Runnable, RTE API, 내부 변수, Task Mapping�
 ```mermaid
 flowchart TD
     A["조향 입력 처리"] --> B["조향 정보 송수신"]
-    B --> C["데이터 갱신·입력 유효성·실행 상태 감시"]
+    B --> C["수신 상태·입력 유효성·실행 상태 감시"]
     C --> D["안전 상태 판단"]
     D --> E["조향 출력 제어"]
 ```
 
 출력 ECU SW는 다음 세 가지 주요 Fault를 감시 대상으로 한다.
 
-- 조향 데이터 갱신 이상
+- 조향 정보 수신 이상
 - 조향 입력 유효 범위 이탈
 - 조향 제어 관련 SW 실행 이상
+
+조향 정보 수신 상태는 수신된 Alive Counter의 변경 여부를 이용하여 판단한다.
 
 Fault가 확인된 경우 공통적으로 FAIL-SAFE 상태로 전환하고 위험한 조향 출력을 제한한다.
 
@@ -55,32 +57,34 @@ Fault가 해소된 이후에는 정의된 정상 상태 복귀 조건을 만족�
 
 ---
 
-# 4. SW 요구사항
+## 4. SW 요구사항
 
-## 4.1 조향 입력 및 통신
+### 4.1 조향 입력 및 통신
 
 | SW Req. ID | SW 요구사항 | 상위 추적 ID |
 |---|---|---|
 | **SWR-IN-001** | 입력 ECU SW는 운전자의 조향 입력을 취득하여 조향 정보로 제공해야 한다. | Req_001 / SYS-F-001 / SYS-DES-001 |
-| **SWR-COM-001** | 입력 ECU SW는 조향 정보와 데이터 갱신 여부를 판단할 수 있는 정보를 출력 ECU에 **10 ms 주기**로 송신해야 한다. | Req_002 / SYS-F-002 / SYS-DES-002 |
+| **SWR-COM-001** | 입력 ECU SW는 조향 정보와 수신 상태를 판단할 수 있는 정보를 출력 ECU에 **10 ms 주기**로 송신해야 한다. | Req_002 / SYS-F-002 / SYS-DES-002 |
 | **SWR-COM-002** | 출력 ECU SW는 입력 ECU가 송신한 조향 정보를 수신하여 진단 및 제어 기능에 제공해야 한다. | Req_002 / SYS-F-002 / SYS-DES-002 |
 
 ---
 
-## 4.2 조향 데이터 갱신 상태 진단
+### 4.2 조향 정보 수신 상태 진단
 
-HC-01 / SG-01에 대응하여 출력 ECU SW는 조향 정보가 정상적으로 갱신되는지 판단해야 한다.
+HC-01 / SG-01에 대응하여 출력 ECU SW는 조향 정보가 정상적으로 수신되는지 판단해야 한다.
+
+상위 시스템 요구사항에서는 조향 정보의 정상 수신 여부를 정의하며, SW 수준에서는 Alive Counter를 이용하여 조향 정보의 갱신 여부를 확인하는 방식으로 구체화한다.
 
 | SW Req. ID | SW 요구사항 | 상위 추적 ID |
 |---|---|---|
-| **SWR-DIAG-001** | 출력 ECU SW는 수신한 조향 정보의 Alive Counter를 이용하여 데이터 갱신 여부를 판단해야 한다. | Req_003 / SYS-F-003 / SYS-DES-003 |
-| **SWR-DIAG-002** | Alive Counter가 정상적으로 변경되는 경우 조향 데이터가 정상적으로 갱신된 것으로 판단해야 한다. | Req_003 / SYS-F-003 / SYS-DES-003 |
-| **SWR-DIAG-003** | 동일한 Alive Counter가 **연속 2회 이상 확인된 경우** 조향 데이터 갱신 Fault로 판정해야 한다. | Req_003 / SYS-F-003 / SYS-DES-003 |
-| **SWR-DIAG-004** | 출력 ECU SW는 조향 데이터 갱신 Fault 판정 결과를 안전 상태 판단 기능에 제공해야 한다. | Req_003, Req_006 / SYS-F-003, SYS-F-006 / SYS-DES-003, SYS-DES-006 |
+| **SWR-DIAG-001** | 출력 ECU SW는 수신한 조향 정보의 Alive Counter를 이용하여 조향 정보의 수신 상태를 판단해야 한다. | Req_003 / SYS-F-003 / SYS-DES-003 |
+| **SWR-DIAG-002** | Alive Counter가 정상적으로 변경되는 경우 조향 정보가 정상적으로 수신된 것으로 판단해야 한다. | Req_003 / SYS-F-003 / SYS-DES-003 |
+| **SWR-DIAG-003** | 동일한 Alive Counter가 **연속 2회 이상 확인된 경우** 조향 정보 수신 Fault로 판정해야 한다. | Req_003 / SYS-F-003 / SYS-DES-003 |
+| **SWR-DIAG-004** | 출력 ECU SW는 조향 정보 수신 Fault 판정 결과를 안전 상태 판단 기능에 제공해야 한다. | Req_003, Req_006 / SYS-F-003, SYS-F-006 / SYS-DES-003, SYS-DES-006 |
 
 ---
 
-## 4.3 조향 입력 유효성 진단
+### 4.3 조향 입력 유효성 진단
 
 HC-02 / SG-02에 대응하여 출력 ECU SW는 수신한 조향 입력의 유효성을 판단해야 한다.
 
@@ -93,7 +97,7 @@ HC-02 / SG-02에 대응하여 출력 ECU SW는 수신한 조향 입력의 유효
 
 ---
 
-## 4.4 SW 실행 상태 감시
+### 4.4 SW 실행 상태 감시
 
 HC-03 / SG-03에 대응하여 출력 ECU SW는 조향 제어 관련 소프트웨어 기능의 실행 상태를 감시해야 한다.
 
@@ -107,34 +111,34 @@ SW 실행 상태 감시를 위한 구체적인 AUTOSAR WdgM 구성, Supervised E
 
 ---
 
-## 4.5 안전 상태 전환 및 유지
+### 4.5 안전 상태 전환 및 유지
 
-조향 데이터 갱신 이상, 조향 입력 이상 또는 SW 실행 이상이 확인된 경우 공통 안전 동작을 수행한다.
+조향 정보 수신 이상, 비정상 조향 입력 또는 SW 실행 이상이 확인된 경우 공통 안전 동작을 수행한다.
 
 | SW Req. ID | SW 요구사항 | 상위 추적 ID |
 |---|---|---|
-| **SWR-SAFE-001** | 출력 ECU SW는 조향 데이터 갱신 Fault, 조향 입력 Invalid Fault 또는 SW 실행 Fault 중 하나 이상이 확인된 경우 시스템 상태를 **FAIL-SAFE**로 전환해야 한다. | Req_006 / SYS-F-006 / SYS-DES-006 |
+| **SWR-SAFE-001** | 출력 ECU SW는 조향 정보 수신 Fault, 조향 입력 Invalid Fault 또는 SW 실행 Fault 중 하나 이상이 확인된 경우 시스템 상태를 **FAIL-SAFE**로 전환해야 한다. | Req_006 / SYS-F-006 / SYS-DES-006 |
 | **SWR-SAFE-002** | 출력 ECU SW는 FAIL-SAFE 상태에서 위험한 조향 동작이 발생하지 않도록 조향 출력을 제한해야 한다. | Req_007 / SYS-F-007 / SYS-DES-007 |
 | **SWR-SAFE-003** | 출력 ECU SW는 FAIL-SAFE 상태에서 PWM 출력을 **0% Duty**로 제한해야 한다. | Req_007 / SYS-F-007 / SYS-DES-007 |
 | **SWR-SAFE-004** | 출력 ECU SW는 FAIL-SAFE 상태에서 조향 방향 출력을 비활성 상태로 유지해야 한다. | Req_007 / SYS-F-007 / SYS-DES-007 |
-| **SWR-SAFE-005** | 하나 이상의 Fault 조건이 유지되는 동안 FAIL-SAFE 상태와 안전 출력을 유지해야 한다. | Req_006, Req_007 / SYS-F-006, SYS-F-007 / SYS-DES-006, SYS-DES-007 |
+| **SWR-SAFE-005** | 출력 ECU SW는 하나 이상의 Fault 조건이 유지되는 동안 FAIL-SAFE 상태와 안전 출력을 유지해야 한다. | Req_006, Req_007 / SYS-F-006, SYS-F-007 / SYS-DES-006, SYS-DES-007 |
 
 ---
 
-## 4.6 정상 상태 복귀
+### 4.6 정상 상태 복귀
 
 정상 상태 복귀는 독립적인 HARA 항목이 아니라, Fault가 해소된 이후 시스템 기능을 안전하게 회복하기 위한 SW 기능으로 정의한다.
 
 | SW Req. ID | SW 요구사항 | 상위 추적 ID |
 |---|---|---|
-| **SWR-REC-001** | Fault 발생 시 정상 상태 복귀 조건 확인을 시작해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
-| **SWR-REC-002** | 출력 ECU SW는 정상 조건이 **연속 3회 확인된 경우에만** FAIL-SAFE 상태에서 NORMAL 상태로 복귀해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
-| **SWR-REC-003** | 정상 상태 복귀 조건 확인 중 Fault가 다시 감지된 경우 정상 확인 누적 상태를 초기화하고 FAIL-SAFE 상태를 유지해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
-| **SWR-REC-004** | NORMAL 상태로 복귀한 이후에는 정상 조향 제어 출력을 다시 활성화해야 한다. | Req_008, Req_009 / SYS-F-008, SYS-F-009 / SYS-DES-008, SYS-DES-009 |
+| **SWR-REC-001** | 출력 ECU SW는 FAIL-SAFE 상태에서 모든 Fault 조건이 해소된 경우 정상 상태 복귀 조건 확인을 시작해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
+| **SWR-REC-002** | 출력 ECU SW는 모든 정상 조건이 **연속 3회 확인된 경우에만** FAIL-SAFE 상태에서 NORMAL 상태로 복귀해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
+| **SWR-REC-003** | 정상 상태 복귀 조건 확인 중 하나 이상의 Fault가 다시 감지된 경우 정상 확인 누적 상태를 초기화하고 FAIL-SAFE 상태를 유지해야 한다. | Req_008 / SYS-F-008 / SYS-DES-008 |
+| **SWR-REC-004** | 출력 ECU SW는 NORMAL 상태로 복귀한 이후 정상 조향 제어 출력을 다시 활성화해야 한다. | Req_008, Req_009 / SYS-F-008, SYS-F-009 / SYS-DES-008, SYS-DES-009 |
 
 ---
 
-## 4.7 조향 제어 및 출력
+### 4.7 조향 제어 및 출력
 
 | SW Req. ID | SW 요구사항 | 상위 추적 ID |
 |---|---|---|
@@ -145,7 +149,7 @@ SW 실행 상태 감시를 위한 구체적인 AUTOSAR WdgM 구성, Supervised E
 
 ---
 
-# 5. HARA-SW 요구사항 추적성
+## 5. HARA-SW 요구사항 추적성
 
 | HARA ID | Safety Goal | 주요 SW 요구사항 |
 |---|---|---|
@@ -153,11 +157,13 @@ SW 실행 상태 감시를 위한 구체적인 AUTOSAR WdgM 구성, Supervised E
 | **HC-02** | SG-02 | SWR-DIAG-005 ~ SWR-DIAG-008, SWR-SAFE-001 ~ SWR-SAFE-005 |
 | **HC-03** | SG-03 | SWR-EXEC-001 ~ SWR-EXEC-003, SWR-SAFE-001 ~ SWR-SAFE-005 |
 
+`SWR-SAFE-*`는 특정 Fault 하나에 종속되지 않으며, HC-01~HC-03에 해당하는 Fault가 감지된 이후 공통적으로 적용되는 안전 상태 전환 및 출력 제한 요구사항으로 관리한다.
+
 `SWR-REC-*`는 특정 Safety Goal에서 직접 파생되는 Fault 대응 기능이 아니라, Fault 해소 후 시스템의 정상 기능을 안전하게 복구하기 위해 `Req_008`에서 파생된 SW 요구사항으로 관리한다.
 
 ---
 
-# 6. 상·하위 요구사항 추적성
+## 6. 상·하위 요구사항 추적성
 
 | 시스템 요구사항 | 시스템 기능 | 파생 SW 요구사항 |
 |---|---|---|
@@ -174,13 +180,13 @@ SW 실행 상태 감시를 위한 구체적인 AUTOSAR WdgM 구성, Supervised E
 
 ---
 
-# 7. 주요 SW 요구사항 동작 관계
+## 7. 주요 SW 요구사항 동작 관계
 
-## 7.1 Fault 감지 및 FAIL-SAFE 전환
+### 7.1 Fault 감지 및 FAIL-SAFE 전환
 
 ```mermaid
 flowchart TD
-    A["Alive Counter 갱신 이상"] --> D["Fault 판단"]
+    A["조향 정보 수신 이상"] --> D["Fault 판단"]
     B["조향 입력 범위 이탈"] --> D
     C["SW 실행 이상"] --> D
     D --> E["FAIL-SAFE 전환"]
@@ -190,13 +196,15 @@ flowchart TD
 
 세 가지 Fault 중 하나 이상이 확인되면 FAIL-SAFE 상태로 전환하며, Fault가 유지되는 동안 안전 출력을 유지한다.
 
+조향 정보 수신 이상은 Alive Counter가 정상적으로 변경되지 않는 상태를 통해 판단한다.
+
 ---
 
-## 7.2 정상 상태 복귀
+### 7.2 정상 상태 복귀
 
 ```mermaid
 flowchart TD
-    A["FAIL-SAFE 상태"] --> B["모든 Fault 해제"]
+    A["FAIL-SAFE 상태"] --> B["모든 Fault 해소"]
     B --> C["정상 조건 확인"]
     C --> D{"연속 3회 정상?"}
     D -- "No" --> C
@@ -208,7 +216,7 @@ flowchart TD
 
 ---
 
-# 8. 후속 산출물 할당
+## 8. 후속 산출물 할당
 
 | 후속 산출물 | 관련 SW 요구사항 | 구체화할 내용 |
 |---|---|---|
@@ -220,7 +228,7 @@ flowchart TD
 
 ---
 
-# 9. Architecture 및 Detailed Design 관리 정보
+## 9. Architecture 및 Detailed Design 관리 정보
 
 다음 항목은 SW 요구사항의 동작 조건을 구현하기 위한 설계 정보로 후속 문서에서 관리한다.
 
