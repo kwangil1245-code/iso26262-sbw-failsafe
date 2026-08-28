@@ -3,8 +3,8 @@
 **Document ID**: STEER-04-SWADS  
 **ISO 26262 Reference**: Part 6, Cl.7  
 **ASPICE Reference**: SWE.2  
-**Version**: 1.4  
-**Date**: 2026-08-27  
+**Version**: 1.5  
+**Date**: 2026-08-28  
 **Status**: Draft  
 **Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
 **Subtitle**: 조향 진단, 안전 상태 관리 및 조향 출력 SW 아키텍처
@@ -170,8 +170,8 @@ flowchart TD
 | SW-IF-003 | SWC_CanMonitor | SWC_SafetyPolicy | 진단 조향값, Fault 결과 | Sender-Receiver | SWR-DIAG-001 ~ SWR-DIAG-008 |
 | SW-IF-004 | SW 실행 상태 감시 기능 | SWC_SafetyPolicy | SW 실행 상태 | SW 실행 감시 Interface | SWR-EXEC-001 ~ SWR-EXEC-003 |
 | SW-IF-005 | SWC_SafetyPolicy | SWC_ControlCalc | 안전 조향값, 출력 허가 Flag | Sender-Receiver | SWR-SAFE-001 ~ SWR-SAFE-005, SWR-REC-001 ~ SWR-REC-004 |
-| SW-IF-006 | SWC_ControlCalc | SWC_Pwm_Actuator | PWM 값, 좌·우 방향, 출력 허가 | Sender-Receiver | SWR-CTRL-001, SWR-CTRL-002, SWR-ACT-001, SWR-ACT-002 |
-| SW-IF-007 | SWC_Pwm_Actuator | IoHwAb Output | PWM 및 Digital 출력 요청 | Client-Server | SWR-ACT-001, SWR-ACT-002 |
+| SW-IF-006 | SWC_ControlCalc | SWC_Pwm_Actuator | PWM 값, 좌·우 방향, 출력 허가 | Sender-Receiver | SWR-SAFE-002 ~ SWR-SAFE-004, SWR-REC-004, SWR-CTRL-001, SWR-CTRL-002, SWR-ACT-001, SWR-ACT-002 |
+| SW-IF-007 | SWC_Pwm_Actuator | IoHwAb Output | PWM 및 Digital 출력 요청 | Client-Server | SWR-SAFE-003, SWR-SAFE-004, SWR-ACT-001, SWR-ACT-002 |
 
 별도의 외부 상태 표시 또는 진단 모니터링 Interface는 본 프로젝트 범위에 포함하지 않는다.
 
@@ -299,7 +299,7 @@ FAIL-SAFE 상태에서 모든 Fault가 해제되고 `03_SW_Requirements.md`에�
 | SWC_SteeringSensor | SYS-F-001, SYS-F-002 | SWR-IN-001, SWR-COM-001 |
 | SWC_CanMonitor | SYS-F-002, SYS-F-003, SYS-F-004 | SWR-COM-002, SWR-DIAG-001 ~ SWR-DIAG-008 |
 | SWC_SafetyPolicy | SYS-F-005, SYS-F-006, SYS-F-007, SYS-F-008 | SWR-EXEC-001 ~ SWR-EXEC-003, SWR-SAFE-001 ~ SWR-SAFE-005, SWR-REC-001 ~ SWR-REC-004 |
-| SWC_ControlCalc | SYS-F-007, SYS-F-009 | SWR-SAFE-002 ~ SWR-SAFE-004, SWR-CTRL-001, SWR-CTRL-002, SWR-ACT-002 |
+| SWC_ControlCalc | SYS-F-007, SYS-F-008, SYS-F-009 | SWR-SAFE-002 ~ SWR-SAFE-004, SWR-REC-004, SWR-CTRL-001, SWR-CTRL-002, SWR-ACT-002 |
 | SWC_Pwm_Actuator | SYS-F-007, SYS-F-010 | SWR-SAFE-003, SWR-SAFE-004, SWR-ACT-001, SWR-ACT-002 |
 
 ---
