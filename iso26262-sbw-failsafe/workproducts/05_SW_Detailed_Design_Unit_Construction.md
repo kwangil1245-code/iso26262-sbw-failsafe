@@ -3,8 +3,8 @@
 **Document ID**: STEER-05-SWDDUC  
 **ISO 26262 Reference**: Part 6, Cl.8  
 **ASPICE Reference**: SWE.3 (Software Detailed Design and Unit Construction)  
-**Version**: 1.3  
-**Date**: 2026-08-27  
+**Version**: 1.4  
+**Date**: 2026-08-28  
 **Status**: Completed  
 **Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
 **Subtitle**: SW Unit 상세 로직, 상태 관리 및 AUTOSAR Interface 구현
@@ -62,9 +62,9 @@ flowchart TD
 
 ---
 
-# 4. UNIT-001 Steering Sensor Unit
+## 4. UNIT-001 Steering Sensor Unit
 
-## 4.1 단위 인터페이스
+### 4.1 단위 인터페이스
 
 | 구분 | 인터페이스 | 데이터 | 설명 |
 |---|---|---|---|
@@ -73,7 +73,7 @@ flowchart TD
 | 출력 | `Project_SSU_SteerInfo` | `SSU_AliveCounter` | 데이터 갱신 판단을 위한 Counter를 제공한다. |
 | Event | Timing Event | 10 ms | `RE_Can_Tx_10ms()`를 기동한다. |
 
-## 4.2 내부 상태
+### 4.2 내부 상태
 
 | 변수 ID | 변수 | 자료형 | 초기값 | 역할 |
 |---|---|---|---|---|
@@ -81,7 +81,7 @@ flowchart TD
 | VAR-IN-002 | `level` | `IoHwAb_ValueType` | 실행 시 취득 | 아날로그 입력값 |
 | VAR-IN-003 | `angle` | `sint16` | 실행 시 계산 | 변환된 조향값 |
 
-## 4.3 처리 절차
+### 4.3 처리 절차
 
 1. IoHwAb를 통해 아날로그 조향 입력을 읽는다.
 2. 아날로그 입력에서 기준 오프셋 `512`를 차감하여 조향값을 생성한다.
@@ -89,7 +89,7 @@ flowchart TD
 4. 조향값을 RTE를 통해 출력한다.
 5. 다음 메시지를 위해 Alive Counter를 1 증가시킨다.
 
-## 4.4 상세설계 규칙
+### 4.4 상세설계 규칙
 
 | 상세설계 ID | 설계 내용 | 추적 대상 |
 |---|---|---|
@@ -100,9 +100,9 @@ flowchart TD
 
 ---
 
-# 5. UNIT-002 CAN Monitor Unit
+## 5. UNIT-002 CAN Monitor Unit
 
-## 5.1 단위 인터페이스
+### 5.1 단위 인터페이스
 
 | 구분 | 인터페이스 | 데이터 | 설명 |
 |---|---|---|---|
@@ -110,7 +110,7 @@ flowchart TD
 | 출력 | `P_CanMonitorToSafetyPolicy` | 조향값, Fault Flag | 진단 결과를 SafetyPolicy에 전달한다. |
 | Event | Data Received Event | 조향 정보 수신 | `CanMonitor_func()`를 기동한다. |
 
-## 5.2 내부 상태 및 기준값
+### 5.2 내부 상태 및 기준값
 
 | 변수 ID | 변수 또는 상수 | 자료형 | 초기값 / 값 | 역할 |
 |---|---|---|---|---|
@@ -122,7 +122,7 @@ flowchart TD
 | CONST-DIAG-002 | 조향값 상한 | `sint16` | `511` | 유효 범위 상한 |
 | CONST-DIAG-003 | 동일 Counter Fault 기준 | `uint8` | `2` | 연속 동일 Counter Fault 판정 기준 |
 
-## 5.3 진단 결정 순서
+### 5.3 진단 결정 순서
 
 ```mermaid
 flowchart TD
@@ -144,7 +144,7 @@ flowchart TD
     J -->|"Yes"| F
 ```
 
-## 5.4 처리 규칙
+### 5.4 처리 규칙
 
 | 상세설계 ID | 설계 내용 | 추적 대상 |
 |---|---|---|
@@ -158,9 +158,9 @@ flowchart TD
 
 ---
 
-# 6. UNIT-003 Safety Policy Unit
+## 6. UNIT-003 Safety Policy Unit
 
-## 6.1 단위 인터페이스
+### 6.1 단위 인터페이스
 
 | 구분 | 인터페이스 | 데이터 | 설명 |
 |---|---|---|---|
@@ -169,7 +169,7 @@ flowchart TD
 | 출력 | `P_SafetyPolicyToControlCalc` | 조향값, 출력 결정 Flag | 안전 판단이 반영된 제어 입력 |
 | Event | Data Received Event | CanMonitor 결과 | `SafetyPolicy_PreCheck_func()` 기동 |
 
-## 6.2 내부 상태
+### 6.2 내부 상태
 
 | 변수 ID | 변수 | 자료형 | 초기값 | 역할 |
 |---|---|---|---|---|
@@ -180,7 +180,7 @@ flowchart TD
 
 `gIsFailsafe`는 SafetyPolicy 내부 상태로 관리하며 별도의 외부 상태 표시 Interface로 제공하지 않는다.
 
-## 6.3 상태 전이
+### 6.3 상태 전이
 
 ```mermaid
 stateDiagram-v2
@@ -193,7 +193,7 @@ stateDiagram-v2
     FAIL_SAFE --> NORMAL: 정상 조건 연속 3회
 ```
 
-## 6.4 처리 순서
+### 6.4 처리 순서
 
 ```mermaid
 flowchart TD
@@ -217,7 +217,7 @@ flowchart TD
     L --> I
 ```
 
-## 6.5 상세설계 규칙
+### 6.5 상세설계 규칙
 
 | 상세설계 ID | 설계 내용 | 추적 대상 |
 |---|---|---|
@@ -232,11 +232,11 @@ flowchart TD
 
 ---
 
-# 7. UNIT-004 SW Execution Status Evaluation Unit
+## 7. UNIT-004 SW Execution Status Evaluation Unit
 
 UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 상태를 Fault 여부로 변환한다.
 
-## 7.1 WdgM 상태 판정
+### 7.1 WdgM 상태 판정
 
 | WdgM Global Status | SW 실행 Fault | 처리 |
 |---|---|---|
@@ -246,7 +246,7 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 | `WDGM_GLOBAL_STATUS_STOPPED` | TRUE | SW 실행 Fault 판정 |
 | 그 외 상태 | FALSE | 현재 구현에서는 Fault 조건에 포함하지 않음 |
 
-## 7.2 상세설계 규칙
+### 7.2 상세설계 규칙
 
 | 상세설계 ID | 설계 내용 | 추적 대상 |
 |---|---|---|
@@ -256,9 +256,9 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 
 ---
 
-# 8. UNIT-005 Control Calculation Unit
+## 8. UNIT-005 Control Calculation Unit
 
-## 8.1 단위 인터페이스
+### 8.1 단위 인터페이스
 
 | 구분 | 인터페이스 | 데이터 | 설명 |
 |---|---|---|---|
@@ -266,7 +266,7 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 | 출력 | `P_ControlCalcToActuator` | PWM, Left, Right, Keep_Go | Actuator 제어 요청 |
 | Event | Data Received Event | SafetyPolicy 결과 | `ControlCalc_func()` 기동 |
 
-## 8.2 내부 상태 및 상수
+### 8.2 내부 상태 및 상수
 
 | 변수 ID | 변수 또는 상수 | 값 / 초기값 | 역할 |
 |---|---|---|---|
@@ -277,12 +277,12 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 | CONST-CTRL-004 | `PWM_MIN` | `0` | PWM 출력 하한 |
 | CONST-CTRL-005 | 변화량 상한 | `512` | PWM 계산에 사용하는 최대 변화량 |
 
-## 8.3 상세설계 규칙
+### 8.3 상세설계 규칙
 
 | 상세설계 ID | 설계 내용 | 추적 대상 |
 |---|---|---|
 | SWD-CTRL-001 | SafetyPolicy Fault Flag가 TRUE이면 PWM, Left, Right 및 Keep_Go를 비활성 상태로 설정한다. | SWR-SAFE-002 ~ SWR-SAFE-004, SWR-ACT-002 / SW-IF-005, SW-IF-006 / RUN-004 |
-| SWD-CTRL-002 | 정상 상태에서는 현재 조향값과 이전 조향값의 차이를 계산한다. | SWR-CTRL-001 / RUN-004 |
+| SWD-CTRL-002 | 정상 상태에서는 현재 조향값과 이전 조향값의 차이를 계산한다. | SWR-REC-004, SWR-CTRL-001 / RUN-004 |
 | SWD-CTRL-003 | 조향 변화량이 `2`보다 크면 Right 방향으로 결정한다. | SWR-CTRL-001 / SW-IF-006 / RUN-004 |
 | SWD-CTRL-004 | 조향 변화량이 `-2`보다 작으면 Left 방향으로 결정한다. | SWR-CTRL-001 / SW-IF-006 / RUN-004 |
 | SWD-CTRL-005 | 조향 변화량의 절댓값이 `2` 이하이면 정지 상태로 결정한다. | SWR-CTRL-002 / SW-IF-006 / RUN-004 |
@@ -290,13 +290,13 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 | SWD-CTRL-007 | 상대 Duty는 `abs_diff × 32768 ÷ 512`로 계산한다. | SWR-CTRL-001 / RUN-004 |
 | SWD-CTRL-008 | 최종 PWM은 `STEER_DUTY × RelativeDutyCycle`의 Q15 연산 결과로 계산하고 `PWM_MAX` 이하로 제한한다. | SWR-CTRL-001 / SW-IF-006 / RUN-004 |
 | SWD-CTRL-009 | 정지 상태이면 PWM을 `0`으로 설정한다. | SWR-CTRL-002 / SW-IF-006 / RUN-004 |
-| SWD-CTRL-010 | 실행 종료 전 현재 조향값을 이전 조향값으로 저장하고 계산 결과를 RTE Write로 전달한다. | SWR-CTRL-001, SWR-ACT-001 / SW-IF-006 / RUN-004 |
+| SWD-CTRL-010 | 실행 종료 전 현재 조향값을 이전 조향값으로 저장하고 계산 결과를 RTE Write로 전달한다. | SWR-REC-004, SWR-CTRL-001, SWR-ACT-001 / SW-IF-006 / RUN-004 |
 
 ---
 
-# 9. UNIT-006 PWM Actuator Unit
+## 9. UNIT-006 PWM Actuator Unit
 
-## 9.1 단위 인터페이스
+### 9.1 단위 인터페이스
 
 | 구분 | 인터페이스 | 데이터 | 설명 |
 |---|---|---|---|
@@ -305,7 +305,7 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 | 출력 | `R_MotorIn1`, `R_MotorIn2` | Digital | 좌·우 방향 출력 |
 | 출력 | `R_StopLed` | Digital | 출력 정지 여부를 반영하는 보조 출력 |
 
-## 9.2 하드웨어 할당
+### 9.2 하드웨어 할당
 
 | 출력 | IoHwAb 이름 | HW 할당 | 역할 |
 |---|---|---|---|
@@ -316,7 +316,7 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 
 `StopLed`는 별도의 시스템 상태 모니터링 기능으로 정의하지 않으며, Actuator의 출력 정지 여부를 직접 반영하는 보조 하드웨어 출력으로 취급한다.
 
-## 9.3 상세설계 규칙
+### 9.3 상세설계 규칙
 
 | 상세설계 ID | 설계 내용 | 추적 대상 |
 |---|---|---|
@@ -328,7 +328,7 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 
 ---
 
-# 10. RTE 및 BSW 연동
+## 10. RTE 및 BSW 연동
 
 | Integration ID | 호출 유형 | 목적 | 사용 단위 |
 |---|---|---|---|
@@ -350,7 +350,7 @@ UNIT-004는 WdgM Global Status를 이용하여 조향 제어 관련 SW 실행 �
 
 ---
 
-# 11. 단위 간 실행 순서 및 데이터 흐름
+## 11. 단위 간 실행 순서 및 데이터 흐름
 
 1. UNIT-001이 10 ms 주기로 조향값과 Alive Counter를 생성한다.
 2. CAN 수신 이후 UNIT-002가 데이터 갱신 상태 및 조향 입력 유효성을 판단한다.
@@ -375,7 +375,7 @@ flowchart LR
 
 ---
 
-# 12. SW 요구사항-상세설계 추적성
+## 12. SW 요구사항-상세설계 추적성
 
 | SW 요구사항 | 아키텍처 요소 | 상세설계 ID / Unit |
 |---|---|---|
@@ -393,7 +393,7 @@ flowchart LR
 | SWR-REC-001 | SWC-003 | SWD-REC-001 / UNIT-003 |
 | SWR-REC-002 | SWC-003 | SWD-REC-002, SWD-REC-003 / UNIT-003 |
 | SWR-REC-003 | SWC-003 | SWD-REC-004 / UNIT-003 |
-| SWR-REC-004 | SWC-003, SWC-004 | SWD-REC-003 / UNIT-003 |
+| SWR-REC-004 | SWC-003, SWC-004 | SWD-REC-003, SWD-CTRL-002, SWD-CTRL-010 / UNIT-003, UNIT-005 |
 | SWR-CTRL-001 | SWC-004 | SWD-CTRL-002 ~ SWD-CTRL-008, SWD-CTRL-010 / UNIT-005 |
 | SWR-CTRL-002 | SWC-004 | SWD-CTRL-005, SWD-CTRL-009 / UNIT-005 |
 | SWR-ACT-001 | SWC-005 | SWD-ACT-001, SWD-ACT-004, SWD-ACT-005 / UNIT-006 |
@@ -401,7 +401,7 @@ flowchart LR
 
 ---
 
-# 13. 소스 파일 구성
+## 13. 소스 파일 구성
 
 | 소스 파일 | 주요 Unit | 주요 역할 |
 |---|---|---|
@@ -413,7 +413,7 @@ flowchart LR
 
 ---
 
-# 14. 설계 경계
+## 14. 설계 경계
 
 본 문서에서는 다음 항목을 상세설계 수준으로 정의한다.
 
