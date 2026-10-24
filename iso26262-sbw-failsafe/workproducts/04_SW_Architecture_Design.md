@@ -1,356 +1,545 @@
+
 # 소프트웨어 아키텍처 설계 명세서 (Software Architecture Design Specification)
 
 **Document ID**: STEER-04-SWADS  
-**ISO 26262 Reference**: Part 6, Cl.7  
+**ISO 26262 Reference**: Part 6, Clause 7  
 **ASPICE Reference**: SWE.2  
-**Version**: 1.5  
-**Date**: 2026-08-28  
-**Status**: Draft  
-**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
-**Subtitle**: 조향 진단, 안전 상태 관리 및 조향 출력 SW 아키텍처
+**Version**: 1.6 (개정안)  
+**Date**: 2026-10-24  
+**Status**: Draft — 현행 src/ 기준 구조 정합화  
+**Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템
 
 ---
 
 ## 1. 문서 목적
 
-본 문서는 `03_SW_Requirements.md`에서 정의한 `SWR-*`를 소프트웨어 구성요소에 할당하고, 입력 ECU와 출력 ECU의 SWC 구조, 책임, 인터페이스 및 실행 관계를 정의한다.
+본 문서는 소프트웨어 요구사항을 SWC에 할당하고, 입력 ECU와 출력 ECU의 소프트웨어 아키텍처를 정의한다.
 
-본 문서는 소프트웨어 아키텍처 수준을 다룬다.
+기존 5개 SWC 구조를 현재 src/의 7개 SWC 구조에 맞춰 개정하였으며, 각 SWC의 책임, Interface, Port, Runnable, 데이터 흐름 및 요구사항 추적 관계를 명시한다.
 
-SWC 간 기능 분리, 데이터 흐름, Port 및 Interface, Runnable과 Event 구조를 정의하며, 내부 변수, Counter 구현, RTE API 호출 코드, 조건문 및 제어 알고리즘과 같은 구현 상세는 `05_SW_Detailed_Design_Unit_Construction.md`에서 관리한다.
-
----
+본 문서는 소프트웨어 아키텍처 설계에 초점을 맞추며, 구체적인 알고리즘과 구현 내용은 상세설계 문서에서 관리한다.
 
 ## 2. 아키텍처 설계 원칙
 
-| 원칙 | 적용 내용 |
+| 설계 원칙 | 적용 내용 |
 |---|---|
-| 기능 분리 | 입력, 통신·입력 진단, 안전 판단, 제어 계산 및 하드웨어 출력을 별도 SWC로 분리한다. |
-| 단방향 데이터 흐름 | 조향 입력부터 하드웨어 출력까지 기능 책임 순서에 따라 데이터를 전달한다. |
-| 안전 우선 | Fault 판정 결과를 정상 조향 제어보다 우선하여 안전 상태 판단에 반영한다. |
-| 인터페이스 기반 결합 | SWC 간 데이터는 정의된 Port와 Interface를 통해 전달한다. |
-| ECU 책임 분리 | 입력 ECU는 입력 취득·송신, 출력 ECU는 진단·안전 판단·제어·출력을 담당한다. |
-| 추적 가능성 | 각 SWC와 Interface는 관련 `SWR-*`와 연결한다. |
+| 기능 분리 | 통신, 조향각, 실행 진단을 독립 SWC로 분리 |
+| 낮은 결합도 | AUTOSAR Port 및 Interface를 통해 SWC 간 데이터 교환 |
+| 높은 응집도 | 각 SWC가 하나의 주요 책임을 수행 |
+| 안전 판단 집중 | SafetyManager가 진단 결과를 통합하여 안전 명령 결정 |
+| Fail-Safe 우선 | 오류 발생 시 정상 제어보다 모터 출력 차단 우선 |
+| 하드웨어 추상화 | IoHwAb를 통해 하드웨어 의존성 분리 |
+| 재사용성 | 인터페이스를 유지하면서 개별 SWC 변경 가능 |
+| 추적성 | 요구사항과 SWC, Interface, Runnable 연결 |
 
----
+## 3. 전체 소프트웨어 아키텍처
 
-## 3. ECU별 소프트웨어 구성
+### 3.1 ECU 구성
+
+본 시스템은 CAN 통신으로 연결된 두 개의 ECU로 구성된다.
+
+- 입력 ECU: 조향 입력값을 읽고 CAN 통신으로 전달
+- 출력 ECU: 수신 데이터 진단, 안전 상태 판단, 모터 제어 및 출력
+
+### 3.2 SWC 구성도
 
 ```mermaid
-flowchart LR
-    subgraph IN["입력 ECU"]
+flowchart TD
+    subgraph INPUT["입력 ECU"]
         SS["SWC_SteeringSensor"]
     end
 
     CAN["CAN Network"]
 
-    subgraph OUT["출력 ECU"]
-        CM["SWC_CanMonitor"]
-        SP["SWC_SafetyPolicy"]
-        CC["SWC_ControlCalc"]
-        PA["SWC_Pwm_Actuator"]
+    subgraph OUTPUT["출력 ECU"]
+        CD["SWC_ComDiag"]
+        AD["SWC_AngleDiag"]
+        ED["SWC_ExecDiag"]
+        SM["SWC_SafetyManager"]
+        MC["SWC_MotorControl"]
+        MA["SWC_MotorActuator"]
 
-        CM --> SP
-        SP --> CC
-        CC --> PA
+        CD --> SM
+        AD --> SM
+        ED --> SM
+        SM --> MC
+        MC --> MA
     end
 
-    SS --> CAN --> CM
+    SS --> CAN
+    CAN --> CD
+    CAN --> AD
 ```
 
-| SW Component ID | SWC | ECU 할당 | 주요 책임 |
+### 3.3 SWC 목록
+
+| SWC ID | SWC 이름 | ECU | 주요 역할 |
 |---|---|---|---|
-| SWC-001 | SWC_SteeringSensor | 입력 ECU | 조향 입력 취득, 조향 정보 및 Alive Counter 생성, CAN 송신 |
-| SWC-002 | SWC_CanMonitor | 출력 ECU | 조향 정보 수신, 데이터 갱신 상태 및 조향 입력 유효성 진단 |
-| SWC-003 | SWC_SafetyPolicy | 출력 ECU | Fault 결과와 내부 실행 상태 통합, NORMAL/FAIL-SAFE 상태 관리 및 정상 복귀 판단 |
-| SWC-004 | SWC_ControlCalc | 출력 ECU | 안전 판단 결과를 반영한 조향 방향 및 출력 크기 계산 |
-| SWC-005 | SWC_Pwm_Actuator | 출력 ECU | PWM 및 방향 출력을 하드웨어에 반영 |
+| SWC-001 | SWC_SteeringSensor | 입력 ECU | 조향각 및 Alive Counter 생성 |
+| SWC-002 | SWC_ComDiag | 출력 ECU | 통신 이상 진단 및 복구 판단 |
+| SWC-003 | SWC_AngleDiag | 출력 ECU | 조향각 유효성 진단 |
+| SWC-004 | SWC_ExecDiag | 출력 ECU | SW 실행 이상 진단 |
+| SWC-005 | SWC_SafetyManager | 출력 ECU | Fault 통합 및 Fail-Safe 판단 |
+| SWC-006 | SWC_MotorControl | 출력 ECU | PWM 및 모터 방향 계산 |
+| SWC-007 | SWC_MotorActuator | 출력 ECU | 실제 모터 출력 제어 |
 
----
-
-## 4. SWC별 책임과 요구사항 할당
+## 4. SWC별 상세 책임
 
 ### 4.1 SWC_SteeringSensor
 
-| 항목 | 내용 |
-|---|---|
-| 입력 | 조향 입력 장치의 아날로그 값 |
-| 처리 | 입력 취득, 조향 정보 변환, Alive Counter 갱신 |
-| 출력 | 조향값, Alive Counter |
-| 실행 방식 | Timing Event 기반 주기 실행 |
-| 할당 SW 요구사항 | SWR-IN-001, SWR-COM-001 |
+**역할**
 
----
+가변저항을 통해 조향 입력값을 읽고, 조향각과 Alive Counter를 생성하여 출력 ECU로 전달한다.
 
-### 4.2 SWC_CanMonitor
+**입력**
 
-| 항목 | 내용 |
-|---|---|
-| 입력 | CAN으로 수신된 조향값, Alive Counter |
-| 처리 | 조향 데이터 갱신 상태 판단, 조향 입력 유효성 판단 |
-| 출력 | 진단된 조향값, Fault 판정 결과 |
-| 실행 방식 | 조향 정보 수신에 따른 실행 |
-| 할당 SW 요구사항 | SWR-COM-002, SWR-DIAG-001 ~ SWR-DIAG-008 |
+- IoHwAb ADC 입력값
 
-SWC_CanMonitor는 조향 데이터 갱신 이상과 조향 입력 유효 범위 이탈을 독립적으로 판단하고 그 결과를 SWC_SafetyPolicy에 전달한다.
+**처리**
 
-Alive Counter 비교를 위한 이전 값, 연속 동일 횟수 및 입력 범위 비교 로직은 `05_SW_Detailed_Design_Unit_Construction.md`에서 정의한다.
+- ADC 입력값 읽기
+- ADC 중앙값 512를 기준으로 조향각 변환
+- Alive Counter 증가
 
----
+**출력**
 
-### 4.3 SWC_SafetyPolicy
+- AliveCounter: uint8
+- SteeringAngle: sint16
 
-| 항목 | 내용 |
-|---|---|
-| 입력 | 진단된 조향값, CanMonitor Fault 결과, SW 실행 상태 |
-| 처리 | Fault 통합, NORMAL/FAIL-SAFE 상태 관리, 안전 상태 유지 및 정상 복귀 판단 |
-| 출력 | 안전 판단이 반영된 조향값, 출력 허가 Flag |
-| 실행 방식 | CanMonitor 결과 수신에 따른 실행 및 SW 실행 상태 감시 기능과 연동 |
-| 할당 SW 요구사항 | SWR-EXEC-001 ~ SWR-EXEC-003, SWR-SAFE-001 ~ SWR-SAFE-005, SWR-REC-001 ~ SWR-REC-004 |
+**Runnable**
 
-SWC_SafetyPolicy는 시스템의 NORMAL / FAIL-SAFE 상태를 내부적으로 관리한다.
+- RE_Can_Tx_10ms
 
-NORMAL / FAIL-SAFE 상태 자체를 외부 표시용 인터페이스로 제공하지 않으며, 안전 판단 결과는 조향값과 출력 허가 Flag를 통해 SWC_ControlCalc에 전달한다.
+**실행 주기**
 
-정상 복귀를 위한 연속 정상 판정 횟수의 저장 및 갱신 방법은 `05_SW_Detailed_Design_Unit_Construction.md`에서 정의한다.
+- 10 ms
 
----
+### 4.2 SWC_ComDiag
 
-### 4.4 SWC_ControlCalc
+**역할**
 
-| 항목 | 내용 |
-|---|---|
-| 입력 | 안전 판단이 반영된 조향값, 출력 허가 Flag |
-| 처리 | 조향 방향 결정, 출력 크기 계산, FAIL-SAFE 상태에 따른 출력 제한 반영 |
-| 출력 | PWM 값, 좌·우 방향, 출력 허가 상태 |
-| 실행 방식 | SafetyPolicy 결과 수신에 따른 실행 |
-| 할당 SW 요구사항 | SWR-SAFE-002 ~ SWR-SAFE-004, SWR-REC-004, SWR-CTRL-001, SWR-CTRL-002, SWR-ACT-002 |
+Alive Counter를 이용하여 CAN 통신 데이터의 연속성을 검사하고, 통신 이상 및 정상 복귀 여부를 판단한다.
 
-SWC_ControlCalc는 정상 조향 제어 결과보다 SafetyPolicy에서 전달된 안전 판단 결과를 우선 적용한다.
+**입력**
 
----
+- AliveCounter
 
-### 4.5 SWC_Pwm_Actuator
+**처리**
 
-| 항목 | 내용 |
-|---|---|
-| 입력 | PWM 값, 좌·우 방향, 출력 허가 상태 |
-| 처리 | 출력 허가 상태 확인 및 하드웨어 출력 요청 |
-| 출력 | PWM 및 Digital 방향 출력 |
-| 실행 방식 | ControlCalc 결과 수신에 따른 실행 |
-| 할당 SW 요구사항 | SWR-SAFE-003, SWR-SAFE-004, SWR-ACT-001, SWR-ACT-002 |
+- Alive Counter +1 증가 여부 검사
+- 255에서 0으로 순환하는 Wrap-around 처리
+- 연속 오류 2회 발생 시 통신 Fault 판단
+- Fail-Safe 이후 첫 정상 수신값을 기준값으로 설정
+- 이후 +1 증가 3회 연속 확인 시 통신 Fault 해제
 
-SWC_Pwm_Actuator는 전달받은 최종 출력 명령을 실제 하드웨어 출력으로 반영한다.
+**출력**
 
----
+- CommunicationFault: boolean
 
-## 5. SWC 인터페이스 구조
+**상태**
 
-```mermaid
-flowchart TD
-    ADC["IoHwAb Analog"] --> SS["SWC_SteeringSensor"]
+- ALIVE_STATE_INIT
+- ALIVE_STATE_NORMAL
+- ALIVE_STATE_RECOVERY_FIRST
+- ALIVE_STATE_RECOVERY_CHECK
 
-    SS -->|"SteerAngle, AliveCounter"| CM["SWC_CanMonitor"]
+**설계 유의사항**
 
-    CM -->|"SteerInfo, Fault"| SP["SWC_SafetyPolicy"]
+Alive Counter의 시퀀스 검사와 CAN 메시지 Timeout 진단은 구분해야 한다.
 
-    EXEC["SW 실행 상태 감시"] -->|"Execution Status"| SP
+실제 통신 중단 시 Fault를 검출할 수 있도록 CAN 수신 갱신 여부와 Timeout 설정을 확인해야 한다.
 
-    SP -->|"SafeSteer, OutputEnable"| CC["SWC_ControlCalc"]
+### 4.3 SWC_AngleDiag
 
-    CC -->|"PWM, Direction, Enable"| PA["SWC_Pwm_Actuator"]
+**역할**
 
-    PA --> HW["IoHwAb Output"]
-```
+수신한 조향각의 유효성을 검사하고 정상 조향각을 전달한다.
 
-| Interface ID | 제공자 | 사용자 | 전달 정보 | 인터페이스 유형 | 관련 SW 요구사항 |
-|---|---|---|---|---|---|
-| SW-IF-001 | IoHwAb Analog | SWC_SteeringSensor | 조향 입력값 | Client-Server | SWR-IN-001 |
-| SW-IF-002 | SWC_SteeringSensor | SWC_CanMonitor | 조향값, Alive Counter | Sender-Receiver / CAN Mapping | SWR-COM-001, SWR-COM-002 |
-| SW-IF-003 | SWC_CanMonitor | SWC_SafetyPolicy | 진단 조향값, Fault 결과 | Sender-Receiver | SWR-DIAG-001 ~ SWR-DIAG-008 |
-| SW-IF-004 | SW 실행 상태 감시 기능 | SWC_SafetyPolicy | SW 실행 상태 | SW 실행 감시 Interface | SWR-EXEC-001 ~ SWR-EXEC-003 |
-| SW-IF-005 | SWC_SafetyPolicy | SWC_ControlCalc | 안전 조향값, 출력 허가 Flag | Sender-Receiver | SWR-SAFE-001 ~ SWR-SAFE-005, SWR-REC-001 ~ SWR-REC-004 |
-| SW-IF-006 | SWC_ControlCalc | SWC_Pwm_Actuator | PWM 값, 좌·우 방향, 출력 허가 | Sender-Receiver | SWR-SAFE-002 ~ SWR-SAFE-004, SWR-REC-004, SWR-CTRL-001, SWR-CTRL-002, SWR-ACT-001, SWR-ACT-002 |
-| SW-IF-007 | SWC_Pwm_Actuator | IoHwAb Output | PWM 및 Digital 출력 요청 | Client-Server | SWR-SAFE-003, SWR-SAFE-004, SWR-ACT-001, SWR-ACT-002 |
+**입력**
 
-별도의 외부 상태 표시 또는 진단 모니터링 Interface는 본 프로젝트 범위에 포함하지 않는다.
+- SteeringAngle
 
----
+**처리**
 
-## 6. Runnable 및 Event 구조
+- RTE Read 성공 여부 검사
+- 조향각 유효 범위 검사
+- 정상 범위: -512 ~ 511
+- 비정상 데이터 발생 시 Fault 출력
 
-| Runnable ID | SWC | 역할 | 기동 Event | 상세 실행 조건 관리 |
-|---|---|---|---|---|
-| RUN-001 | SWC_SteeringSensor | 조향 입력 취득 및 메시지 송신 | 10 ms Timing Event | `05_SW_Detailed_Design_Unit_Construction.md` |
-| RUN-002 | SWC_CanMonitor | CAN 수신 정보 진단 | Data Received Event | `05_SW_Detailed_Design_Unit_Construction.md` |
-| RUN-003 | SWC_SafetyPolicy | Fault 통합, 안전 상태 판단 및 정상 복귀 관리 | Data Received Event | `05_SW_Detailed_Design_Unit_Construction.md` |
-| RUN-004 | SWC_ControlCalc | 방향 및 출력 크기 계산 | Data Received Event | `05_SW_Detailed_Design_Unit_Construction.md` |
-| RUN-005 | SWC_Pwm_Actuator | 하드웨어 출력 반영 | Data Received Event | `05_SW_Detailed_Design_Unit_Construction.md` |
+**출력**
 
-입력 ECU의 SWC_SteeringSensor Runnable은 10 ms 주기로 실행한다.
+- SteeringAngleFault: boolean
+- ValidatedSteeringAngle: sint16
 
-출력 ECU에서는 조향 정보 수신 이후 진단 → 안전 판단 → 제어 계산 → 하드웨어 출력의 순서로 기능이 수행되도록 구성한다.
+**안전 처리**
 
-구체적인 Runnable 이름, RTE Event 설정 및 Task Mapping은 `05_SW_Detailed_Design_Unit_Construction.md`에서 정의한다.
+조향각이 유효하지 않으면 SteeringAngleFault를 TRUE로 설정하고 ValidatedSteeringAngle은 0으로 출력한다.
 
----
+### 4.4 SWC_ExecDiag
+
+**역할**
+
+Watchdog Manager를 이용하여 SW 실행 이상을 진단한다.
+
+**입력**
+
+- WdgM Global Status
+
+**처리**
+
+- WdgM 상태 조회
+- WDGM_GLOBAL_STATUS_FAILED 검사
+- WDGM_GLOBAL_STATUS_EXPIRED 검사
+- WDGM_GLOBAL_STATUS_STOPPED 검사
+- WdgM 서비스 호출 실패 검사
+
+**출력**
+
+- ExecutionFault: boolean
+
+**설계 유의사항**
+
+WdgM이 실제로 감시할 Runnable, Supervised Entity, Checkpoint 및 오류 반응 정책은 ECU Configuration에서 정의해야 한다.
+
+### 4.5 SWC_SafetyManager
+
+**역할**
+
+각 진단 SWC에서 전달받은 Fault를 통합하여 시스템의 안전 상태를 판단하고, 안전한 조향 명령을 생성한다.
+
+**입력**
+
+- CommunicationFault
+- SteeringAngleFault
+- ExecutionFault
+- ValidatedSteeringAngle
+
+**처리**
+
+1. 통신 진단 결과 확인
+2. 조향각 진단 결과 확인
+3. 실행 진단 결과 확인
+4. RTE Read 성공 여부 확인
+5. NORMAL 또는 FAIL-SAFE 상태 판단
+6. 안전 상태에 따른 조향 명령 결정
+
+**NORMAL 조건**
+
+- CommunicationFault = FALSE
+- SteeringAngleFault = FALSE
+- ExecutionFault = FALSE
+- 모든 RTE Read 성공
+
+**NORMAL 출력**
+
+- FailSafeActive = FALSE
+- SteeringAngleCommand = ValidatedSteeringAngle
+
+**FAIL-SAFE 조건**
+
+- 하나 이상의 Fault 발생
+- 하나 이상의 RTE Read 실패
+
+**FAIL-SAFE 출력**
+
+- FailSafeActive = TRUE
+- SteeringAngleCommand = 0
+
+**출력**
+
+- FailSafeActive: boolean
+- SteeringAngleCommand: sint16
+
+**추가 기능**
+
+- WdgM CheckpointReached 호출
+
+SafetyManager는 통신 복구 횟수를 직접 관리하지 않는다.
+
+통신 복구 판단은 ComDiag에서 수행하며, SafetyManager는 전달된 Fault 상태를 통합하여 최종 안전 명령을 결정한다.
+
+### 4.6 SWC_MotorControl
+
+**역할**
+
+SafetyManager의 조향 명령과 Fail-Safe 상태를 기반으로 모터의 PWM Duty 및 회전 방향을 계산한다.
+
+**입력**
+
+- SteeringAngleCommand
+- FailSafeActive
+
+**처리**
+
+- RTE Read 성공 여부 검사
+- Fail-Safe 상태 확인
+- 이전 조향각과 현재 조향각의 차이 계산
+- 조향각 변화 방향 판단
+- 조향각 변화량에 따른 PWM Duty 계산
+- 정상 복귀 시 기준 조향각 재설정
+
+**출력**
+
+- PwmDutyCycle: uint16
+- MotorDirectionLeft: boolean
+- MotorDirectionRight: boolean
+- MotorEnable: boolean
+
+**FAIL-SAFE 처리**
+
+- PwmDutyCycle = 0
+- MotorDirectionLeft = FALSE
+- MotorDirectionRight = FALSE
+- MotorEnable = FALSE
+
+**정상 복귀 처리**
+
+Fail-Safe 해제 후 첫 정상 조향각은 이전 조향각의 기준값으로 저장한다.
+
+해당 실행 주기에는 모터를 구동하지 않고 다음 정상 입력부터 조향각 변화량을 계산한다.
+
+**PWM 범위**
+
+- PWM Duty 최대값: 16384
+- PWM 표현 기준: 32768
+- 최대 출력 비율: 50%
+
+### 4.7 SWC_MotorActuator
+
+**역할**
+
+MotorControl에서 계산한 PWM 및 방향 명령을 실제 하드웨어 출력으로 변환한다.
+
+**입력**
+
+- PwmDutyCycle
+- MotorDirectionLeft
+- MotorDirectionRight
+- MotorEnable
+
+**처리**
+
+- RTE Read 성공 여부 검사
+- PWM Duty 유효성 검사
+- 모터 방향 명령 유효성 검사
+- MotorEnable 상태 확인
+- IoHwAb를 통한 PWM 및 GPIO 출력
+
+**NORMAL 동작**
+
+- MotorEnable = TRUE
+- 유효한 PWM 및 방향 명령을 모터 드라이버에 전달
+- StopLed = FALSE
+
+**FAIL-SAFE 동작**
+
+- PWM Duty = 0
+- MotorIn1 = FALSE
+- MotorIn2 = FALSE
+- StopLed = TRUE
+
+**설계 유의사항**
+
+실제 모터 회전 방향은 MotorIn1, MotorIn2의 하드웨어 연결에 따라 결정된다.
+
+출력 서비스 실패 시 안전 차단을 보장하기 위한 별도 대응 및 검증이 필요하다.
+
+## 5. AUTOSAR Interface 설계
+
+### 5.1 Sender-Receiver Interface
+
+| Interface ID | Interface 이름 | Data Element | 데이터 타입 |
+|---|---|---|---|
+| IF-001 | If_SteeringSensorData | AliveCounter | uint8 |
+| IF-001 | If_SteeringSensorData | SteeringAngle | sint16 |
+| IF-002 | If_CommunicationDiagnostic | CommunicationFault | boolean |
+| IF-003 | If_SteeringAngleDiagnostic | SteeringAngleFault | boolean |
+| IF-003 | If_SteeringAngleDiagnostic | ValidatedSteeringAngle | sint16 |
+| IF-004 | If_ExecutionDiagnostic | ExecutionFault | boolean |
+| IF-005 | If_SafeSteeringCommand | SteeringAngleCommand | sint16 |
+| IF-005 | If_SafeSteeringCommand | FailSafeActive | boolean |
+| IF-006 | If_MotorDriveCommand | PwmDutyCycle | uint16 |
+| IF-006 | If_MotorDriveCommand | MotorDirectionLeft | boolean |
+| IF-006 | If_MotorDriveCommand | MotorDirectionRight | boolean |
+| IF-006 | If_MotorDriveCommand | MotorEnable | boolean |
+
+### 5.2 Port 설계
+
+| SWC | Port | 방향 | Interface |
+|---|---|---|---|
+| SteeringSensor | P_SteeringSensorData | P-Port | If_SteeringSensorData |
+| ComDiag | R_SteeringSensorData | R-Port | If_SteeringSensorData |
+| ComDiag | P_CommunicationDiagnostic | P-Port | If_CommunicationDiagnostic |
+| AngleDiag | R_SteeringSensorData | R-Port | If_SteeringSensorData |
+| AngleDiag | P_SteeringAngleDiagnostic | P-Port | If_SteeringAngleDiagnostic |
+| ExecDiag | P_ExecutionDiagnostic | P-Port | If_ExecutionDiagnostic |
+| SafetyManager | R_CommunicationDiagnostic | R-Port | If_CommunicationDiagnostic |
+| SafetyManager | R_SteeringAngleDiagnostic | R-Port | If_SteeringAngleDiagnostic |
+| SafetyManager | R_ExecutionDiagnostic | R-Port | If_ExecutionDiagnostic |
+| SafetyManager | P_SafeSteeringCommand | P-Port | If_SafeSteeringCommand |
+| MotorControl | R_SafeSteeringCommand | R-Port | If_SafeSteeringCommand |
+| MotorControl | P_MotorDriveCommand | P-Port | If_MotorDriveCommand |
+| MotorActuator | R_MotorDriveCommand | R-Port | If_MotorDriveCommand |
+
+### 5.3 Client-Server Interface
+
+| 사용 SWC | 서비스 Port | 목적 |
+|---|---|---|
+| SteeringSensor | R_Potentiometer | ADC 입력 |
+| ExecDiag | R_WdgMService | WdgM 상태 조회 |
+| SafetyManager | R_SafetyWdgMCheckpoint | Checkpoint 보고 |
+| MotorActuator | R_PwmMotor | PWM Duty 출력 |
+| MotorActuator | R_MotorIn1 | 모터 방향 출력 |
+| MotorActuator | R_MotorIn2 | 모터 방향 출력 |
+| MotorActuator | R_StopLed | Fail-Safe 표시 |
+
+Client-Server 서비스의 Operation 및 실제 RTE API는 생성된 RTE 설정과 일치해야 한다.
+
+## 6. Runnable 및 Event 설계
+
+| Runnable ID | SWC | Runnable | 실행 조건 |
+|---|---|---|---|
+| RUN-001 | SteeringSensor | RE_Can_Tx_10ms | 10 ms Timing Event |
+| RUN-002 | ComDiag | ComDiag_func | 신규 Alive Counter 수신 기반 |
+| RUN-003 | AngleDiag | AngleDiag_func | 조향각 수신 기반 |
+| RUN-004 | ExecDiag | ExecDiag_func | 주기 실행 |
+| RUN-005 | SafetyManager | SafetyManager_func | 진단 결과 통합 실행 |
+| RUN-006 | MotorControl | MotorControl_func | 안전 조향 명령 처리 |
+| RUN-007 | MotorActuator | MotorActuator_func | 모터 구동 명령 처리 |
+
+위 실행 조건은 아키텍처 설계 기준이며 실제 Timing Event, Data Received Event 및 Task Mapping은 ARXML 설정에서 확정한다.
+
+통신 중단 시에도 Fault 판단과 모터 차단이 실행되도록 Timeout 감시 및 주기적 안전 실행 경로가 필요하다.
 
 ## 7. 정상 동작 데이터 흐름
 
 ```mermaid
 sequenceDiagram
-    participant S as SteeringSensor
-    participant M as CanMonitor
-    participant P as SafetyPolicy
-    participant C as ControlCalc
-    participant A as PwmActuator
+    participant SS as SteeringSensor
+    participant CD as ComDiag
+    participant AD as AngleDiag
+    participant ED as ExecDiag
+    participant SM as SafetyManager
+    participant MC as MotorControl
+    participant MA as MotorActuator
 
-    S->>M: 조향값 + Alive Counter
-    M->>P: 유효 조향값 + 정상 진단 결과
-    P->>C: 조향값 + 출력 허가
-    C->>A: PWM + 방향 + 출력 허가
-    A->>A: 하드웨어 출력 반영
+    SS->>CD: AliveCounter
+    SS->>AD: SteeringAngle
+
+    CD->>SM: CommunicationFault = FALSE
+    AD->>SM: SteeringAngleFault = FALSE
+    AD->>SM: ValidatedSteeringAngle
+    ED->>SM: ExecutionFault = FALSE
+
+    SM->>MC: FailSafeActive = FALSE
+    SM->>MC: SteeringAngleCommand
+
+    MC->>MA: PwmDutyCycle
+    MC->>MA: MotorDirectionLeft
+    MC->>MA: MotorDirectionRight
+    MC->>MA: MotorEnable
+
+    MA->>MA: PWM 및 GPIO 출력
 ```
 
-정상 상태에서는 CanMonitor에서 데이터 갱신 상태와 입력 유효성이 정상으로 판단되고, SafetyPolicy에서 정상 조향 제어를 허가한다.
-
-ControlCalc는 유효한 조향 입력을 기반으로 조향 방향과 출력 크기를 계산하고, PwmActuator가 최종 하드웨어 출력을 수행한다.
-
----
-
-## 8. 고장 동작 데이터 흐름
+## 8. Fail-Safe 동작 데이터 흐름
 
 ```mermaid
 sequenceDiagram
-    participant M as CanMonitor / Execution Monitor
-    participant P as SafetyPolicy
-    participant C as ControlCalc
-    participant A as PwmActuator
+    participant D as Diagnostic SWCs
+    participant SM as SafetyManager
+    participant MC as MotorControl
+    participant MA as MotorActuator
 
-    M->>P: Fault
-    P->>P: FAIL-SAFE 전환
-    P->>C: 안전 조향값 + 출력 금지
-    C->>A: PWM 0 + 방향 비활성
-    A->>A: 안전 출력 반영
+    D->>SM: Fault = TRUE
+
+    SM->>MC: FailSafeActive = TRUE
+    SM->>MC: SteeringAngleCommand = 0
+
+    MC->>MA: MotorEnable = FALSE
+    MC->>MA: PwmDutyCycle = 0
+    MC->>MA: Direction = FALSE / FALSE
+
+    MA->>MA: PWM 0 출력
+    MA->>MA: 방향 신호 비활성화
+    MA->>MA: StopLed = TRUE
 ```
 
-조향 데이터 갱신 이상, 조향 입력 Invalid 또는 SW 실행 이상 중 하나 이상이 확인되면 SafetyPolicy는 FAIL-SAFE 상태로 전환한다.
+## 9. 정상 복귀 설계
 
-FAIL-SAFE 상태에서는 정상 조향 제어 결과보다 안전 출력 제한이 우선 적용된다.
+### 9.1 통신 Fault 복구
 
----
+ComDiag는 통신 Fault 발생 후 다음 순서로 복구 여부를 판단한다.
 
-## 9. 정상 상태 복귀 데이터 흐름
+1. 통신 Fault 발생
+2. 첫 정상 수신값을 기준 Alive Counter로 저장
+3. 이후 +1 증가 여부 확인
+4. +1 증가 3회 연속 확인
+5. CommunicationFault를 FALSE로 변경
 
-```mermaid
-sequenceDiagram
-    participant M as CanMonitor / Execution Monitor
-    participant P as SafetyPolicy
-    participant C as ControlCalc
+### 9.2 시스템 NORMAL 복귀
 
-    M->>P: 정상 진단 결과
-    P->>P: 연속 정상 조건 확인
+SafetyManager는 다음 조건을 모두 만족하면 FailSafeActive를 FALSE로 변경한다.
 
-    alt 정상 조건 충족
-        P->>P: NORMAL 복귀
-        P->>C: 조향값 + 출력 허가
-    else Fault 재발생
-        P->>P: 정상 확인 상태 초기화
-        P->>C: 출력 금지 유지
-    end
-```
+- CommunicationFault = FALSE
+- SteeringAngleFault = FALSE
+- ExecutionFault = FALSE
+- 모든 RTE Read 성공
 
-정상 상태 복귀는 SafetyPolicy에서 관리한다.
+### 9.3 모터 제어 재개
 
-FAIL-SAFE 상태에서 모든 Fault가 해제되고 `03_SW_Requirements.md`에서 정의한 정상 조건이 연속적으로 충족되는 경우 NORMAL 상태로 복귀한다.
+MotorControl은 Fail-Safe 해제 후 첫 정상 조향각을 기준값으로 저장한다.
 
-정상 확인 과정에서 Fault가 다시 발생하면 정상 확인 누적 상태를 초기화하고 FAIL-SAFE 상태를 유지한다.
+이후 정상 입력부터 조향각 변화량을 계산하여 모터 구동을 재개한다.
 
----
+### 9.4 복구 정책 검토사항
 
-## 10. SW 요구사항-아키텍처 추적성
+현재 ComDiag는 통신 복구 시 3회 연속 정상 증가를 확인한다.
 
-| SW 요구사항 | 할당 SWC | Interface / Runnable |
+다만 AngleDiag와 ExecDiag는 동일한 3회 복구 조건을 적용하지 않으므로, 시스템 전체 복구 요구사항과의 정합성을 별도로 검토해야 한다.
+
+## 10. SW 요구사항 추적성
+
+| SW 요구사항 | 담당 SWC | 관련 기능 |
 |---|---|---|
-| SWR-IN-001 | SWC-001 | SW-IF-001 / RUN-001 |
-| SWR-COM-001 | SWC-001 | SW-IF-002 / RUN-001 |
-| SWR-COM-002 | SWC-002 | SW-IF-002 / RUN-002 |
-| SWR-DIAG-001 ~ SWR-DIAG-004 | SWC-002 | SW-IF-002, SW-IF-003 / RUN-002 |
-| SWR-DIAG-005 ~ SWR-DIAG-008 | SWC-002 | SW-IF-002, SW-IF-003 / RUN-002 |
-| SWR-EXEC-001 ~ SWR-EXEC-003 | SWC-003 | SW-IF-004 / RUN-003 |
-| SWR-SAFE-001 | SWC-003 | SW-IF-003, SW-IF-004, SW-IF-005 / RUN-003 |
-| SWR-SAFE-002 | SWC-003, SWC-004 | SW-IF-005, SW-IF-006 / RUN-003, RUN-004 |
-| SWR-SAFE-003 | SWC-003, SWC-004, SWC-005 | SW-IF-005, SW-IF-006, SW-IF-007 / RUN-003, RUN-004, RUN-005 |
-| SWR-SAFE-004 | SWC-003, SWC-004, SWC-005 | SW-IF-005, SW-IF-006, SW-IF-007 / RUN-003, RUN-004, RUN-005 |
-| SWR-SAFE-005 | SWC-003 | SW-IF-003, SW-IF-004, SW-IF-005 / RUN-003 |
-| SWR-REC-001 ~ SWR-REC-003 | SWC-003 | SW-IF-003, SW-IF-004, SW-IF-005 / RUN-003 |
-| SWR-REC-004 | SWC-003, SWC-004 | SW-IF-005, SW-IF-006 / RUN-003, RUN-004 |
-| SWR-CTRL-001 | SWC-004 | SW-IF-005, SW-IF-006 / RUN-004 |
-| SWR-CTRL-002 | SWC-004 | SW-IF-005, SW-IF-006 / RUN-004 |
-| SWR-ACT-001 | SWC-005 | SW-IF-006, SW-IF-007 / RUN-005 |
-| SWR-ACT-002 | SWC-004, SWC-005 | SW-IF-005, SW-IF-006, SW-IF-007 / RUN-004, RUN-005 |
+| SWR-IN-001 | SWC-001 | 조향 입력 |
+| SWR-COM-001 | SWC-001 | Alive Counter 생성 |
+| SWR-COM-002 | SWC-002, SWC-003 | CAN 데이터 수신 |
+| SWR-DIAG-001 ~ 004 | SWC-002 | 통신 진단 |
+| SWR-DIAG-005 ~ 008 | SWC-003 | 조향각 진단 |
+| SWR-EXEC-001 ~ 003 | SWC-004, SWC-005 | 실행 이상 진단 |
+| SWR-SAFE-001 ~ 005 | SWC-005, SWC-006, SWC-007 | Fail-Safe 판단 및 출력 제한 |
+| SWR-REC-001 ~ 003 | SWC-002, SWC-005 | 정상 복구 판단 |
+| SWR-REC-004 | SWC-005, SWC-006 | 복구 후 제어 재개 |
+| SWR-CTRL-001 ~ 002 | SWC-006 | PWM 및 방향 계산 |
+| SWR-ACT-001 ~ 002 | SWC-007 | 모터 출력 |
 
----
+## 11. 아키텍처 검증 항목
 
-## 11. SWC별 상위 기능 추적성
+| 검증 항목 | 확인 내용 |
+|---|---|
+| SWC 연결 | Port 및 Interface 연결 여부 |
+| CAN 통신 | 입력 ECU와 출력 ECU 간 신호 매핑 |
+| Alive Counter | 정상 증가, 불연속, Wrap-around |
+| 통신 Timeout | CAN 메시지 중단 감지 |
+| 조향각 유효성 | 정상값, 경계값, 범위 초과 |
+| WdgM | 실행 이상 검출 및 Checkpoint |
+| SafetyManager | Fault별 Fail-Safe 상태 전환 |
+| MotorControl | PWM 및 방향 계산 |
+| MotorActuator | PWM 0 및 방향 비활성화 |
+| 정상 복귀 | Alive Counter 3회 연속 정상 증가 |
+| RTE | 데이터 Read/Write 및 반환값 처리 |
+| OS | Runnable과 Task Mapping |
+| HW 출력 | 실제 모터 정지 및 출력 실패 대응 |
 
-| SWC | 주요 시스템 기능 | 주요 SW 요구사항 |
-|---|---|---|
-| SWC_SteeringSensor | SYS-F-001, SYS-F-002 | SWR-IN-001, SWR-COM-001 |
-| SWC_CanMonitor | SYS-F-002, SYS-F-003, SYS-F-004 | SWR-COM-002, SWR-DIAG-001 ~ SWR-DIAG-008 |
-| SWC_SafetyPolicy | SYS-F-005, SYS-F-006, SYS-F-007, SYS-F-008 | SWR-EXEC-001 ~ SWR-EXEC-003, SWR-SAFE-001 ~ SWR-SAFE-005, SWR-REC-001 ~ SWR-REC-004 |
-| SWC_ControlCalc | SYS-F-007, SYS-F-008, SYS-F-009 | SWR-SAFE-002 ~ SWR-SAFE-004, SWR-REC-004, SWR-CTRL-001, SWR-CTRL-002, SWR-ACT-002 |
-| SWC_Pwm_Actuator | SYS-F-007, SYS-F-010 | SWR-SAFE-003, SWR-SAFE-004, SWR-ACT-001, SWR-ACT-002 |
+## 12. 설계 결론
 
----
+본 소프트웨어 아키텍처는 AUTOSAR Classic 기반으로 입력, 진단, 안전 판단, 제어 계산 및 하드웨어 출력을 독립 SWC로 분리하였다.
 
-## 12. 후속 상세 설계 전개
+ComDiag, AngleDiag, ExecDiag는 각각 통신, 조향각, 실행 이상을 진단하며 SafetyManager는 이 결과를 통합하여 안전한 조향 명령을 결정한다.
 
-| 아키텍처 항목 | 후속 문서 | 구체화 내용 |
-|---|---|---|
-| SWC_SteeringSensor | `05_SW_Detailed_Design_Unit_Construction.md` | ADC 입력 처리, Alive Counter 생성 및 갱신 |
-| SWC_CanMonitor | `05_SW_Detailed_Design_Unit_Construction.md` | 이전 Alive Counter 저장, 동일 Counter 연속 횟수 판단, 입력 범위 비교 |
-| SWC_SafetyPolicy | `05_SW_Detailed_Design_Unit_Construction.md` | Fault 통합, FAIL-SAFE 상태 변수, 정상 복귀 Counter 및 상태 전이 |
-| SWC_ControlCalc | `05_SW_Detailed_Design_Unit_Construction.md` | 방향 결정, PWM 계산, 안전 출력 우선 적용 |
-| SWC_Pwm_Actuator | `05_SW_Detailed_Design_Unit_Construction.md` | PWM 및 Digital Output 처리 |
-| SW-IF-001 ~ SW-IF-007 | `05_SW_Detailed_Design_Unit_Construction.md` | 실제 RTE API 및 데이터 타입 |
-| RUN-001 ~ RUN-005 | `05_SW_Detailed_Design_Unit_Construction.md` | Runnable 구현 및 Task Mapping |
+MotorControl은 조향 명령을 PWM 및 방향 신호로 변환하고 MotorActuator는 IoHwAb를 통해 실제 하드웨어 출력을 수행한다.
 
----
+이를 통해 각 SWC의 책임을 명확히 하고, 기능 변경 시 다른 SWC에 미치는 영향을 최소화할 수 있도록 설계하였다.
 
-## 13. 설계 경계
-
-본 SW Architecture에서는 다음 항목을 정의한다.
-
-- 입력 ECU와 출력 ECU의 SWC 구성
-- SWC별 기능 책임
-- SWC 간 데이터 흐름
-- Port 및 Interface 관계
-- Runnable 및 Event 구조
-- SW 요구사항과 SWC 간 할당 관계
-- Fault 감지 이후 FAIL-SAFE 상태까지의 SW 구조
-- FAIL-SAFE 상태에서 NORMAL 상태로 복귀하는 SW 구조
-
-다음 항목은 Detailed Design에서 정의한다.
-
-- 내부 변수명 및 데이터 타입
-- Alive Counter 비교 코드
-- 연속 Fault Counter 구현
-- 정상 복귀 Counter 구현
-- NORMAL / FAIL-SAFE 상태 변수
-- RTE Read / Write API
-- WdgM 세부 설정 및 Checkpoint
-- PWM 계산식
-- 방향 판단 조건
-- Runnable의 실제 함수 구현
-- Task Mapping 상세
-
----
-
-본 문서는 SW Architecture의 기준 문서이다.
-
-`03_SW_Requirements.md`에서 정의한 SW 요구사항을 SWC와 Interface에 할당하며, 실제 내부 로직과 코드 구현은 `05_SW_Detailed_Design_Unit_Construction.md`에서 관리한다.
-
-NORMAL / FAIL-SAFE 상태는 SWC_SafetyPolicy 내부에서 안전 판단을 위해 관리하며 별도의 외부 상태 표시 기능은 두지 않는다.
-
-전체 요구사항, SW Architecture, Detailed Design 및 검증 간 양방향 추적성은 `Traceability_Matrix.md`에서 관리한다.
+단, 실제 기능안전 요구사항 충족 여부는 CAN Timeout, WdgM 설정, 모터 출력 차단, 정상 복귀 조건 및 시스템 검증 결과를 통해 확인해야 한다.
