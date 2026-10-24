@@ -4,7 +4,7 @@
 **Document ID**: STEER-05-SWDDUC  
 **ISO 26262 Reference**: Part 6, Clause 8  
 **ASPICE Reference**: SWE.3 (Software Detailed Design and Unit Construction)  
-**Version**: 1.5 (개정안)  
+**Version**: 1.6 (개정안 — Mermaid 레이아웃 개선)  
 **Date**: 2026-10-24  
 **Status**: Draft — `src/` 현행 구현 기준  
 **Project Title**: AUTOSAR 기반 조향 관련 오류에 대한 복구 및 진단 시스템  
@@ -45,16 +45,35 @@
 | UNIT-007 | SWC-007 | SWC_MotorActuator | `MotorActuator_func()` | `src/SWC_MotorActuator.c` |
 
 ```mermaid
-flowchart LR
-  S["UNIT-001<br/>SteeringSensor"] -->|"AliveCounter / CAN"| C["UNIT-002<br/>ComDiag"]
-  S -->|"SteeringAngle / CAN"| A["UNIT-003<br/>AngleDiag"]
-  W["WdgM"] --> E["UNIT-004<br/>ExecDiag"]
-  C -->|"CommunicationFault"| M["UNIT-005<br/>SafetyManager"]
-  A -->|"SteeringAngleFault / ValidatedSteeringAngle"| M
-  E -->|"ExecutionFault"| M
-  M -->|"SteeringAngleCommand / FailSafeActive"| P["UNIT-006<br/>MotorControl"]
-  P -->|"PWM / Direction / Enable"| O["UNIT-007<br/>MotorActuator"]
-  O --> H["IoHwAb PWM / GPIO"]
+%%{init: {"flowchart": {"htmlLabels": true, "nodeSpacing": 60, "rankSpacing": 75, "padding": 30}, "themeVariables": {"fontSize": "12px"}}}%%
+flowchart TB
+    subgraph INPUT["입력 ECU"]
+        S["UNIT-001<br/>SteeringSensor"]
+    end
+    subgraph OUTPUT["출력 ECU"]
+        direction TB
+        C["UNIT-002<br/>ComDiag"]
+        A["UNIT-003<br/>AngleDiag"]
+        E["UNIT-004<br/>ExecDiag"]
+        M["UNIT-005<br/>SafetyManager"]
+        P["UNIT-006<br/>MotorControl"]
+        O["UNIT-007<br/>MotorActuator"]
+    end
+    W["WdgM<br/>Service"]
+    H["IoHwAb<br/>PWM / GPIO"]
+    S -->|"AliveCounter<br/>CAN"| C
+    S -->|"SteeringAngle<br/>CAN"| A
+    W --> E
+    C -->|"CommunicationFault"| M
+    A -->|"SteeringAngleFault<br/>ValidatedSteeringAngle"| M
+    E -->|"ExecutionFault"| M
+    M -->|"SteeringAngleCommand<br/>FailSafeActive"| P
+    P -->|"PWM Duty<br/>Direction<br/>MotorEnable"| O
+    O --> H
+    classDef swc fill:#EEF2FF,stroke:#818CF8,color:#1E1B4B
+    classDef service fill:#F1F5F9,stroke:#64748B,color:#334155
+    class S,C,A,E,M,P,O swc
+    class W,H service
 ```
 
 > 두 ECU 사이의 화살표는 **논리적 데이터 흐름**을 나타낸다. 실제 CAN Mapping, COM/PduR 및 ECU Extract 설정은 별도로 확인해야 한다.
@@ -122,19 +141,29 @@ flowchart LR
 ### 5.3 상태 전이 및 판정
 
 ```mermaid
-stateDiagram-v2
-  [*] --> INIT
-  INIT --> RECOVERY_CHECK: 첫 RTE Read 성공 / 기준값 저장
-  INIT --> RECOVERY_FIRST: RTE Read 실패
-  NORMAL --> NORMAL: 기대값 +1 수신 / 오류 수 0
-  NORMAL --> NORMAL: 시퀀스 불일치 1회 / 오류 수 1, 기준값 갱신
-  NORMAL --> RECOVERY_FIRST: 연속 시퀀스 불일치 2회
-  RECOVERY_FIRST --> RECOVERY_CHECK: RTE Read 성공 / 새 기준값 저장
-  RECOVERY_CHECK --> RECOVERY_CHECK: +1 정상 1~2회
-  RECOVERY_CHECK --> NORMAL: +1 정상 3회
-  RECOVERY_CHECK --> RECOVERY_FIRST: +1 불일치
-  NORMAL --> RECOVERY_FIRST: RTE Read 실패
-  RECOVERY_CHECK --> RECOVERY_FIRST: RTE Read 실패
+%%{init: {"flowchart": {"htmlLabels": true, "nodeSpacing": 75, "rankSpacing": 75, "padding": 30}, "themeVariables": {"fontSize": "12px"}}}%%
+flowchart TD
+    START(["시작"])
+    INIT["INIT"]
+    FIRST["RECOVERY_FIRST<br/>복구 기준값 대기"]
+    CHECK["RECOVERY_CHECK<br/>연속 증가 확인"]
+    NORMAL["NORMAL<br/>통신 정상"]
+    START --> INIT
+    INIT -->|"첫 Read 성공<br/>기준값 저장"| CHECK
+    INIT -->|"Read 실패"| FIRST
+    FIRST -->|"Read 성공<br/>기준값 저장"| CHECK
+    CHECK -->|"정상 +1 증가<br/>1~2회"| CHECK
+    CHECK -->|"정상 +1 증가<br/>3회 달성"| NORMAL
+    CHECK -->|"증가 불일치<br/>또는 Read 실패"| FIRST
+    NORMAL -->|"정상 +1 증가"| NORMAL
+    NORMAL -->|"불일치 1회"| NORMAL
+    NORMAL -->|"불일치 2회 연속<br/>또는 Read 실패"| FIRST
+    classDef normal fill:#DCFCE7,stroke:#16A34A,color:#14532D
+    classDef recovery fill:#FEF3C7,stroke:#D97706,color:#78350F
+    classDef initial fill:#EEF2FF,stroke:#818CF8,color:#1E1B4B
+    class NORMAL normal
+    class FIRST,CHECK recovery
+    class START,INIT initial
 ```
 
 **현재 구현의 정확한 동작:**
@@ -243,14 +272,29 @@ stateDiagram-v2
 ### 8.2 안전 판단 로직
 
 ```mermaid
+%%{init: {"flowchart": {"htmlLabels": true, "nodeSpacing": 100, "rankSpacing": 75, "padding": 35}, "themeVariables": {"fontSize": "12px"}}}%%
 flowchart TD
-  A["CheckpointReached(1U)"] --> B["Fault 3개 + ValidatedSteeringAngle 읽기"]
-  B --> C{"모든 RTE Read == E_OK<br/>그리고 Fault 3개 모두 FALSE?"}
-  C -->|Yes| D["FailSafeActive=FALSE<br/>SteeringAngleCommand=ValidatedSteeringAngle"]
-  C -->|No| E["FailSafeActive=TRUE<br/>SteeringAngleCommand=0"]
-  D --> F["RTE Write 2개"]
-  E --> F
-  F --> G["CheckpointReached(2U)"]
+    A["CheckpointReached(1U)"]
+    B["진단 결과 읽기<br/>CommunicationFault<br/>SteeringAngleFault<br/>ExecutionFault<br/>ValidatedSteeringAngle"]
+    C{"모든 RTE Read 성공?<br/>Fault 3개 모두 FALSE?"}
+    D["정상 제어 허용<br/>FailSafeActive = FALSE<br/>SteeringAngleCommand =<br/>ValidatedSteeringAngle"]
+    E["Fail-Safe 활성화<br/>FailSafeActive = TRUE<br/>SteeringAngleCommand = 0"]
+    F["RTE Write 2개<br/>SteeringAngleCommand<br/>FailSafeActive"]
+    G["CheckpointReached(2U)"]
+    A --> B --> C
+    C -->|"Yes"| D
+    C -->|"No"| E
+    D --> F
+    E --> F
+    F --> G
+    classDef process fill:#EEF2FF,stroke:#818CF8,color:#1E1B4B
+    classDef decision fill:#FEF3C7,stroke:#D97706,color:#78350F
+    classDef failsafe fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D
+    classDef normal fill:#DCFCE7,stroke:#16A34A,color:#14532D
+    class A,B,F,G process
+    class C decision
+    class D normal
+    class E failsafe
 ```
 
 **중요:** 현재 `SafetyManager_func()`에는 `gIsFailsafe`, `gNormalRecoverCnt` 또는 3회 복구 Counter가 **없다**. 매 실행마다 현재 진단 결과를 읽고 즉시 안전 명령을 결정한다. 통신 복구 지연은 ComDiag의 `CommunicationFault`에 반영된다.
