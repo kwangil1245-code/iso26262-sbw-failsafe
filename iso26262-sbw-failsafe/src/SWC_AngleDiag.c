@@ -1,45 +1,31 @@
 
 #include "Rte_SWC_AngleDiag.h"
 
-#define STEER_ANGLE_MIN  (-512)
-#define STEER_ANGLE_MAX  (511)
+#define STEERING_ANGLE_MIN (-512)
+#define STEERING_ANGLE_MAX (511)
 
 void AngleDiag_func(void)
 {
-    sint16 angle = 0;
+    sint16 steeringAngle = 0;
+    sint16 validatedSteeringAngle = 0;
 
-    boolean angleFault = TRUE;
-
+    boolean steeringAngleFault = TRUE;
     Std_ReturnType retAngle;
 
-    /* 조향각 수신 */
-    retAngle =
-        Rte_Read_Project_SSU_SteerInfo_SSU_SteerAngle(
-            &angle);
+    retAngle = Rte_Read_R_SteeringSensorData_SteeringAngle(
+        &steeringAngle);
 
-    /*
-     * 수신 성공 및 유효 범위 확인
-     */
     if ((retAngle == E_OK) &&
-        (angle >= STEER_ANGLE_MIN) &&
-        (angle <= STEER_ANGLE_MAX))
+        (steeringAngle >= STEERING_ANGLE_MIN) &&
+        (steeringAngle <= STEERING_ANGLE_MAX))
     {
-        angleFault = FALSE;
+        steeringAngleFault = FALSE;
+        validatedSteeringAngle = steeringAngle;
     }
 
-    /*
-     * 비정상 조향각은 제어에 전달하지 않음
-     */
-    if (angleFault == TRUE)
-    {
-        angle = 0;
-    }
+    (void)Rte_Write_P_SteeringAngleDiagnostic_SteeringAngleFault(
+        steeringAngleFault);
 
-    /* SafetyManager에 진단 결과 전달 */
-    (void)Rte_Write_P_AngleDiagToSafetyManager_AngleFault(
-        angleFault);
-
-    /* SafetyManager에 조향각 전달 */
-    (void)Rte_Write_P_AngleDiagToSafetyManager_SteerAngle(
-        angle);
+    (void)Rte_Write_P_SteeringAngleDiagnostic_ValidatedSteeringAngle(
+        validatedSteeringAngle);
 }
