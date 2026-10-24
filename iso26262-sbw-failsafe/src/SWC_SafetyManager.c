@@ -6,79 +6,61 @@
 
 void SafetyManager_func(void)
 {
-    boolean comFault = TRUE;
-    boolean angleFault = TRUE;
-    boolean execFault = TRUE;
+    boolean communicationFault = TRUE;
+    boolean steeringAngleFault = TRUE;
+    boolean executionFault = TRUE;
+    boolean failSafeActive = TRUE;
 
-    boolean outFlag = TRUE;
-
-    sint16 inSteer = 0;
-    sint16 outSteer = 0;
+    sint16 validatedSteeringAngle = 0;
+    sint16 steeringAngleCommand = 0;
 
     Std_ReturnType retCom;
-    Std_ReturnType retAngle;
+    Std_ReturnType retAngleFault;
     Std_ReturnType retExec;
-    Std_ReturnType retSteer;
+    Std_ReturnType retSteeringAngle;
 
-    /*
-     * WdgM Checkpoint 1
-     */
-    (void)Rte_Call_SWC_SafetyManager_SE_SafetyManager_CheckpointReached(1U);
+    (void)Rte_Call_R_SafetyWdgMCheckpoint_CheckpointReached(1U);
 
-    /*
-     * 각 Diag SWC의 진단 결과 수신
-     */
     retCom =
-        Rte_Read_R_ComDiagToSafetyManager_ComFault(
-            &comFault);
+        Rte_Read_R_CommunicationDiagnostic_CommunicationFault(
+            &communicationFault);
 
-    retAngle =
-        Rte_Read_R_AngleDiagToSafetyManager_AngleFault(
-            &angleFault);
+    retAngleFault =
+        Rte_Read_R_SteeringAngleDiagnostic_SteeringAngleFault(
+            &steeringAngleFault);
+
+    retSteeringAngle =
+        Rte_Read_R_SteeringAngleDiagnostic_ValidatedSteeringAngle(
+            &validatedSteeringAngle);
 
     retExec =
-        Rte_Read_R_ExecDiagToSafetyManager_ExecFault(
-            &execFault);
+        Rte_Read_R_ExecutionDiagnostic_ExecutionFault(
+            &executionFault);
 
-    retSteer =
-        Rte_Read_R_AngleDiagToSafetyManager_SteerAngle(
-            &inSteer);
-
-    /*
-     * 하나라도 Fault이면 FAIL-SAFE
-     *
-     * RTE Read 실패도 Fault로 처리
-     */
-    if ((retCom != E_OK) ||
-        (retAngle != E_OK) ||
-        (retExec != E_OK) ||
-        (retSteer != E_OK) ||
-        (comFault == TRUE) ||
-        (angleFault == TRUE) ||
-        (execFault == TRUE))
+    if ((retCom == E_OK) &&
+        (retAngleFault == E_OK) &&
+        (retExec == E_OK) &&
+        (retSteeringAngle == E_OK) &&
+        (communicationFault == FALSE) &&
+        (steeringAngleFault == FALSE) &&
+        (executionFault == FALSE))
     {
-        outFlag = TRUE;
-        outSteer = 0;
+        failSafeActive = FALSE;
+        steeringAngleCommand = validatedSteeringAngle;
     }
     else
     {
-        outFlag = FALSE;
-        outSteer = inSteer;
+        failSafeActive = TRUE;
+        steeringAngleCommand = 0;
     }
 
-    /*
-     * ControlCalc에 안전 출력 전달
-     */
-    (void)Rte_Write_P_SafetyManagerToControlCalc_Steerinfo(
-        outSteer);
+    (void)Rte_Write_P_SafeSteeringCommand_SteeringAngleCommand(
+        steeringAngleCommand);
 
-    (void)Rte_Write_P_SafetyManagerToControlCalc_flag(
-        outFlag);
+    (void)Rte_Write_P_SafeSteeringCommand_FailSafeActive(
+        failSafeActive);
 
-    /*
-     * WdgM Checkpoint 2
-     */
-    (void)Rte_Call_SWC_SafetyManager_SE_SafetyManager_CheckpointReached(2U);
+    (void)Rte_Call_R_SafetyWdgMCheckpoint_CheckpointReached(2U);
 }
 
 #define SWC_SafetyManager_STOP_SEC_CODE
