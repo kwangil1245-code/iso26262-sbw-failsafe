@@ -1,81 +1,68 @@
 
 #include "Rte_SWC_MotorActuator.h"
 
+#define PWM_DUTY_MAX (16384U)
+
 void MotorActuator_func(void)
 {
-    sint16 pwmInfo = 0;
+    uint16 pwmDutyCycle = 0U;
 
-    boolean left = FALSE;
-    boolean right = FALSE;
-    boolean keepGo = FALSE;
+    boolean motorDirectionLeft = FALSE;
+    boolean motorDirectionRight = FALSE;
+    boolean motorEnable = FALSE;
 
     Std_ReturnType retPwm;
     Std_ReturnType retLeft;
     Std_ReturnType retRight;
-    Std_ReturnType retGo;
+    Std_ReturnType retEnable;
 
-    /*
-     * MotorControl에서 제어 명령 수신
-     */
     retPwm =
-        Rte_Read_R_MotorControlToMotorActuator_Pwm_info(
-            &pwmInfo);
+        Rte_Read_R_MotorDriveCommand_PwmDutyCycle(
+            &pwmDutyCycle);
 
     retLeft =
-        Rte_Read_R_MotorControlToMotorActuator_Left(
-            &left);
+        Rte_Read_R_MotorDriveCommand_MotorDirectionLeft(
+            &motorDirectionLeft);
 
     retRight =
-        Rte_Read_R_MotorControlToMotorActuator_Right(
-            &right);
+        Rte_Read_R_MotorDriveCommand_MotorDirectionRight(
+            &motorDirectionRight);
 
-    retGo =
-        Rte_Read_R_MotorControlToMotorActuator_Keep_Go(
-            &keepGo);
+    retEnable =
+        Rte_Read_R_MotorDriveCommand_MotorEnable(
+            &motorEnable);
 
-    /*
-     * RTE Read 실패 시 출력 차단
-     */
     if ((retPwm != E_OK) ||
         (retLeft != E_OK) ||
         (retRight != E_OK) ||
-        (retGo != E_OK))
+        (retEnable != E_OK))
     {
-        keepGo = FALSE;
+        motorEnable = FALSE;
     }
 
-    /*
-     * 유효하지 않은 PWM 또는 방향 명령 차단
-     */
-    if ((pwmInfo < 0) ||
-        (pwmInfo > 16384) ||
-        (left == right))
+    if ((pwmDutyCycle > PWM_DUTY_MAX) ||
+        (motorDirectionLeft == motorDirectionRight))
     {
-        keepGo = FALSE;
+        motorEnable = FALSE;
     }
 
-    /*
-     * Fail-Safe 또는 정지 명령
-     */
-    if (keepGo == FALSE)
+    if (motorEnable == FALSE)
     {
         (void)Rte_Call_R_PwmMotor_SetDutyCycle(0U);
-
         (void)Rte_Call_R_MotorIn1_WriteDirect(FALSE);
         (void)Rte_Call_R_MotorIn2_WriteDirect(FALSE);
-
         (void)Rte_Call_R_StopLed_WriteDirect(TRUE);
     }
     else
     {
-        /*
-         * 모터 방향 및 PWM 출력
-         */
-        (void)Rte_Call_R_MotorIn1_WriteDirect(left);
-        (void)Rte_Call_R_MotorIn2_WriteDirect(right);
+        (void)Rte_Call_R_MotorIn1_WriteDirect(
+            motorDirectionLeft);
+
+        (void)Rte_Call_R_MotorIn2_WriteDirect(
+            motorDirectionRight);
 
         (void)Rte_Call_R_PwmMotor_SetDutyCycle(
-            (uint16)pwmInfo);
+            pwmDutyCycle);
 
         (void)Rte_Call_R_StopLed_WriteDirect(FALSE);
     }
