@@ -1,126 +1,106 @@
 
 #include "Rte_SWC_MotorControl.h"
 
-#define PWM_MAX              (32768U)
-#define STEER_DUTY           (16384U)
+#define PWM_SCALE_MAX        (32768U)
+#define PWM_DUTY_MAX         (16384U)
+#define STEER_DIFF_MAX       (512)
 #define STEER_DIFF_THRESHOLD (2)
 
-static sint16 prevInputSteer = 0;
-static boolean firstNormalInput = FALSE;
+static sint16 prevSteeringAngle = 0;
+static boolean referenceInitialized = FALSE;
 
 void MotorControl_func(void)
 {
-    sint16 inputSteer = 0;
-    sint16 steerDiff = 0;
-    sint16 absDiff = 0;
+    sint16 steeringAngleCommand = 0;
+    sint32 steeringDiff = 0;
+    sint32 absDiff = 0;
 
-    uint16 pwmDuty = 0U;
-    uint32 relativeDuty = 0U;
+    uint16 pwmDutyCycle = 0U;
+    uint32 relativeDutyCycle = 0U;
 
-    boolean inputFault = TRUE;
-    boolean left = FALSE;
-    boolean right = FALSE;
-    boolean keepGo = FALSE;
+    boolean failSafeActive = TRUE;
+    boolean motorDirectionLeft = FALSE;
+    boolean motorDirectionRight = FALSE;
+    boolean motorEnable = FALSE;
 
-    Std_ReturnType retSteer;
-    Std_ReturnType retFlag;
+    Std_ReturnType retAngle;
+    Std_ReturnType retFailSafe;
 
-    /*
-     * SafetyManager 출력 수신
-     */
-    retSteer =
-        Rte_Read_R_SafetyManagerToMotorControl_Steerinfo(
-            &inputSteer);
+    retAngle =
+        Rte_Read_R_SafeSteeringCommand_SteeringAngleCommand(
+            &steeringAngleCommand);
 
-    retFlag =
-        Rte_Read_R_SafetyManagerToMotorControl_flag(
-            &inputFault);
+    retFailSafe =
+        Rte_Read_R_SafeSteeringCommand_FailSafeActive(
+            &failSafeActive);
 
-    /*
-     * RTE Read 실패 또는 Fail-Safe
-     */
-    if ((retSteer != E_OK) ||
-        (retFlag != E_OK) ||
-        (inputFault == TRUE))
+    if ((retAngle != E_OK) ||
+        (retFailSafe != E_OK) ||
+        (failSafeActive == TRUE))
     {
-        /*
-         * 모터 구동 차단
-         * 복귀 시 기준값 재설정
-         */
-        firstNormalInput = FALSE;
+        referenceInitialized = FALSE;
     }
-    else if (firstNormalInput == FALSE)
+    else if (referenceInitialized == FALSE)
     {
-        /*
-         * Fail-Safe 해제 이후 첫 정상값은
-         * 비교 기준으로만 저장
-         */
-        prevInputSteer = inputSteer;
-        firstNormalInput = TRUE;
+        prevSteeringAngle = steeringAngleCommand;
+        referenceInitialized = TRUE;
     }
     else
     {
-        steerDiff = inputSteer - prevInputSteer;
+        steeringDiff =
+            (sint32)steeringAngleCommand -
+            (sint32)prevSteeringAngle;
 
-        if (steerDiff < 0)
+        if (steeringDiff < 0)
         {
-            absDiff = (sint16)(-steerDiff);
+            absDiff = -steeringDiff;
         }
         else
         {
-            absDiff = steerDiff;
+            absDiff = steeringDiff;
         }
 
-        /*
-         * 조향값 변화 방향 판단
-         */
-        if (steerDiff > STEER_DIFF_THRESHOLD)
+        if (steeringDiff > STEER_DIFF_THRESHOLD)
         {
-            left = FALSE;
-            right = TRUE;
-            keepGo = TRUE;
+            motorDirectionLeft = FALSE;
+            motorDirectionRight = TRUE;
+            motorEnable = TRUE;
         }
-        else if (steerDiff < -STEER_DIFF_THRESHOLD)
+        else if (steeringDiff < -STEER_DIFF_THRESHOLD)
         {
-            left = TRUE;
-            right = FALSE;
-            keepGo = TRUE;
+            motorDirectionLeft = TRUE;
+            motorDirectionRight = FALSE;
+            motorEnable = TRUE;
         }
 
-        /*
-         * 조향값 변화량에 따른 PWM 계산
-         */
-        if (keepGo == TRUE)
+        if (motorEnable == TRUE)
         {
-            if (absDiff > 512)
+            if (absDiff > STEER_DIFF_MAX)
             {
-                absDiff = 512;
+                absDiff = STEER_DIFF_MAX;
             }
 
-            relativeDuty =
-                ((uint32)absDiff * PWM_MAX) / 512U;
+            relativeDutyCycle =
+                ((uint32)absDiff * PWM_SCALE_MAX) /
+                (uint32)STEER_DIFF_MAX;
 
-            pwmDuty = (uint16)(
-                ((uint32)STEER_DUTY * relativeDuty)
-                >> 15
+            pwmDutyCycle = (uint16)(
+                ((uint32)PWM_DUTY_MAX * relativeDutyCycle) >> 15
             );
         }
 
-        prevInputSteer = inputSteer;
+        prevSteeringAngle = steeringAngleCommand;
     }
 
-    /*
-     * MotorActuator에 제어 명령 전달
-     */
-    (void)Rte_Write_P_MotorControlToMotorActuator_Pwm_info(
-        (sint16)pwmDuty);
+    (void)Rte_Write_P_MotorDriveCommand_PwmDutyCycle(
+        pwmDutyCycle);
 
-    (void)Rte_Write_P_MotorControlToMotorActuator_Left(
-        left);
+    (void)Rte_Write_P_MotorDriveCommand_MotorDirectionLeft(
+        motorDirectionLeft);
 
-    (void)Rte_Write_P_MotorControlToMotorActuator_Right(
-        right);
+    (void)Rte_Write_P_MotorDriveCommand_MotorDirectionRight(
+        motorDirectionRight);
 
-    (void)Rte_Write_P_MotorControlToMotorActuator_Keep_Go(
-        keepGo);
+    (void)Rte_Write_P_MotorDriveCommand_MotorEnable(
+        motorEnable);
 }
