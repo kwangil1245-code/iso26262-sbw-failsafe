@@ -2,6 +2,9 @@
 #include "WdgM.h"
 #include "Rte_SWC_ExecDiag.h"
 
+/*
+ * WdgM 상태를 Fault로 변환
+ */
 static boolean App_IsWdgmFault(
     WdgM_GlobalStatusType status)
 {
@@ -27,7 +30,7 @@ void ExecDiag_func(void)
     Std_ReturnType retStatus;
 
     /*
-     * WdgM Global Status 확인
+     * WdgM Global Status 조회
      */
     retStatus =
         Rte_Call_WdgM_API_R_GetGlobalStatus(
@@ -37,6 +40,9 @@ void ExecDiag_func(void)
     {
         execFault = App_IsWdgmFault(wdgmStatus);
 
+        /*
+         * EXPIRED 발생 시 원인 SE 조회
+         */
         if (wdgmStatus == WDGM_GLOBAL_STATUS_EXPIRED)
         {
             (void)Rte_Call_WdgM_API_R_GetFirstExpiredSEID(
@@ -45,8 +51,8 @@ void ExecDiag_func(void)
     }
 
     /*
-     * SafetyPolicy에 SW 실행 이상 전달
+     * SafetyManager에 SW 실행 진단 결과 전달
      */
-    (void)Rte_Write_P_ExecDiagToSafetyPolicy_ExecFault(
+    (void)Rte_Write_P_ExecDiagToSafetyManager_ExecFault(
         execFault);
 }
